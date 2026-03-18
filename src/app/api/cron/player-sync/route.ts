@@ -25,17 +25,23 @@ export async function GET(req: NextRequest) {
     let upserted = 0
 
     for (const p of players) {
+      const status = p.active ? 'ACTIVE' : 'INACTIVE'
+      const positions = [p.primaryPosition.abbreviation]
+
       await prisma.player.upsert({
-        where: { mlbId: p.mlbId },
+        where: { mlbId: p.id },
         create: {
-          mlbId: p.mlbId, fullName: p.fullName, firstName: p.firstName,
-          lastName: p.lastName, positions: p.positions, mlbTeam: p.mlbTeam,
-          mlbTeamAbbr: p.mlbTeamAbbr, status: p.status, batsHand: p.batsHand,
-          throwsHand: p.throwsHand, birthDate: p.birthDate ? new Date(p.birthDate) : null,
+          mlbId: p.id, fullName: p.fullName, firstName: p.firstName,
+          lastName: p.lastName, positions, mlbTeamId: p.currentTeam?.id ?? null,
+          mlbTeamName: p.currentTeam?.name ?? null,
+          mlbTeamAbbr: p.currentTeam?.abbreviation ?? null, status,
+          bats: p.batSide?.code ?? null, throws: p.pitchHand?.code ?? null,
+          birthDate: p.birthDate ? new Date(p.birthDate) : null,
         },
         update: {
-          fullName: p.fullName, positions: p.positions, mlbTeam: p.mlbTeam,
-          mlbTeamAbbr: p.mlbTeamAbbr, status: p.status,
+          fullName: p.fullName, positions, mlbTeamId: p.currentTeam?.id ?? null,
+          mlbTeamName: p.currentTeam?.name ?? null,
+          mlbTeamAbbr: p.currentTeam?.abbreviation ?? null, status,
         },
       })
       upserted++

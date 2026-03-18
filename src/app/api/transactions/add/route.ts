@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       // Drop player if needed
       if (dropPlayerId && currentRosterSize >= MAX_ROSTER_SIZE) {
         await tx.rosterSlot.deleteMany({
-          where: { playerId: dropPlayerId, teamId: user.teamId },
+          where: { playerId: dropPlayerId!, teamId: user.teamId! },
         })
 
         await tx.transaction.create({
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
             leagueId: user.leagueId!,
             teamId: user.teamId!,
             type: 'DROP',
-            playerId: dropPlayerId,
+            playerId: dropPlayerId!,
             status: 'PROCESSED',
             processedAt: new Date(),
           },
