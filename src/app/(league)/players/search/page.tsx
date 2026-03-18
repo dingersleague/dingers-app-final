@@ -74,11 +74,12 @@ export default function PlayerSearchPage() {
     if (res.ok) {
       const data = await res.json()
       if (data.success) {
+        const roster = data.data?.roster ?? data.data ?? []
         setRosterDetail(
-          (data.data ?? []).map((slot: any) => ({
-            playerId: slot.playerId,
+          roster.map((slot: any) => ({
+            playerId: slot.player?.id ?? slot.playerId,
             playerName: slot.player?.fullName ?? 'Unknown',
-            position: slot.position ?? slot.slotType ?? 'BN',
+            position: slot.position ?? 'BN',
           }))
         )
       }
