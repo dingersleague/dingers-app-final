@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const start = Date.now()
 
   try {
-    const players = await fetchAllPlayers()
+    const players = await fetchAllPlayers(new Date().getFullYear())
     let upserted = 0
 
     for (const p of players) {
