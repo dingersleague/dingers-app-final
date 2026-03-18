@@ -20,14 +20,12 @@ interface Team { id: string; name: string; abbreviation: string }
 
 interface Trade {
   trade_id: string
-  offer_team_name: string
-  receive_team_name: string
-  offer_player_name: string
-  receive_player_name: string
-  offer_player_hr: number
-  receive_player_hr: number
   status: string
   created_at: string
+  other_team_name: string
+  i_get: Array<{ id: string; name: string }>
+  i_give: Array<{ id: string; name: string }>
+  needs_my_response: boolean
 }
 
 export default function TradesPage() {
@@ -144,26 +142,24 @@ export default function TradesPage() {
         <p className="text-text-muted text-sm mt-1">Propose and manage trades</p>
       </div>
 
-      {/* Pending trades */}
-      {trades.filter(t => t.status === 'PENDING').length > 0 && (
+      {/* Pending trades requiring my action */}
+      {trades.filter(t => t.status === 'PENDING' && t.needs_my_response).length > 0 && (
         <div className="card overflow-hidden border-accent-amber/30">
           <div className="px-4 py-3 border-b border-surface-border bg-accent-amber/5">
             <h2 className="font-display font-bold text-lg text-accent-amber">Incoming Offers</h2>
           </div>
-          {trades.filter(t => t.status === 'PENDING').map(trade => (
+          {trades.filter(t => t.status === 'PENDING' && t.needs_my_response).map(trade => (
             <div key={trade.trade_id} className="p-4 border-b border-surface-border/30">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-sm text-text-muted">{trade.offer_team_name} offers:</span>
-              </div>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex-1 card p-3 bg-brand/5 border-brand/20 text-center">
-                  <div className="text-sm font-semibold text-brand">You get</div>
-                  <div className="font-display font-bold mt-1">{trade.offer_player_name}</div>
+              <div className="text-sm text-text-muted mb-3">{trade.other_team_name} offers:</div>
+              <div className="flex items-start gap-3 mb-3">
+                <div className="flex-1 card p-3 bg-brand/5 border-brand/20">
+                  <div className="text-xs font-semibold text-brand mb-1">You get</div>
+                  {trade.i_get.map(p => <div key={p.id} className="font-display font-bold text-sm">{p.name}</div>)}
                 </div>
-                <ArrowLeftRight size={20} className="text-text-muted flex-shrink-0" />
-                <div className="flex-1 card p-3 bg-red-500/5 border-red-500/20 text-center">
-                  <div className="text-sm font-semibold text-accent-red">You give</div>
-                  <div className="font-display font-bold mt-1">{trade.receive_player_name}</div>
+                <ArrowLeftRight size={18} className="text-text-muted flex-shrink-0 mt-3" />
+                <div className="flex-1 card p-3 bg-red-500/5 border-red-500/20">
+                  <div className="text-xs font-semibold text-accent-red mb-1">You give</div>
+                  {trade.i_give.map(p => <div key={p.id} className="font-display font-bold text-sm">{p.name}</div>)}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -174,6 +170,26 @@ export default function TradesPage() {
                   <X size={14} /> Decline
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* My pending outgoing offers */}
+      {trades.filter(t => t.status === 'PENDING' && !t.needs_my_response).length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-surface-border">
+            <h2 className="font-display font-bold text-lg">Your Pending Offers</h2>
+          </div>
+          {trades.filter(t => t.status === 'PENDING' && !t.needs_my_response).map(trade => (
+            <div key={trade.trade_id} className="flex items-center gap-3 px-4 py-3 border-b border-surface-border/30">
+              <div className="flex-1 text-sm">
+                <span className="text-text-muted">To {trade.other_team_name}: </span>
+                <span className="text-accent-red">{trade.i_give.map(p => p.name).join(', ')}</span>
+                <span className="text-text-muted"> for </span>
+                <span className="text-brand">{trade.i_get.map(p => p.name).join(', ')}</span>
+              </div>
+              <span className="text-xs text-accent-amber font-semibold">Waiting</span>
             </div>
           ))}
         </div>
@@ -318,9 +334,10 @@ export default function TradesPage() {
                   {t.status === 'PROCESSED' ? 'Done' : 'Rej.'}
                 </span>
                 <div className="flex-1 text-xs text-text-secondary">
-                  {t.offer_team_name}: <span className="text-text-primary font-medium">{t.offer_player_name}</span>
+                  <span className="text-text-muted">w/ {t.other_team_name}: </span>
+                  <span className="text-brand">{t.i_get.map(p => p.name).join(', ')}</span>
                   {' ↔ '}
-                  {t.receive_team_name}: <span className="text-text-primary font-medium">{t.receive_player_name}</span>
+                  <span className="text-accent-red">{t.i_give.map(p => p.name).join(', ')}</span>
                 </div>
               </div>
             ))}

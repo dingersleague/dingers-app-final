@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 export const dynamic = 'force-dynamic' // prevent static build-time evaluation
 
-// GET /api/trades - list pending trades involving my team
+// GET /api/trades - list trades involving my team (grouped by tradeId)
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuth()
@@ -14,49 +14,64 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
     }
 
-    const trades = await prisma.$queryRaw<Array<{
-      trade_id: string
-      offer_team_id: string
-      offer_team_name: string
-      receive_team_id: string
-      receive_team_name: string
-      offer_player_id: string
-      offer_player_name: string
-      receive_player_id: string
-      receive_player_name: string
-      status: string
-      created_at: Date
-    }>>`
-      SELECT
-        t1.notes AS trade_id,
-        t1.team_id AS offer_team_id,
-        ot.name AS offer_team_name,
-        t2.team_id AS receive_team_id,
-        rt.name AS receive_team_name,
-        t1.player_id AS offer_player_id,
-        op.full_name AS offer_player_name,
-        t2.player_id AS receive_player_id,
-        rp.full_name AS receive_player_name,
-        t1.status,
-        t1.created_at
-      FROM transactions t1
-      JOIN transactions t2 ON t2.notes = t1.notes AND t2.type = 'TRADE_DROP' AND t2.team_id != t1.team_id
-      JOIN teams ot ON ot.id = t1.team_id
-      JOIN teams rt ON rt.id = t2.team_id
-      JOIN players op ON op.id = t1.player_id
-      JOIN players rp ON rp.id = t2.player_id
-      WHERE t1.type = 'TRADE_ADD'
-        AND t1.league_id = ${user.leagueId}
-        AND (t1.team_id = ${user.teamId} OR t2.team_id = ${user.teamId})
-      ORDER BY t1.created_at DESC
-      LIMIT 50
-    `
+    // Get all trade transactions involving my team
+    const tradeTxs = await prisma.transaction.findMany({
+      where: {
+        leagueId: user.leagueId,
+        type: { in: ['TRADE_ADD', 'TRADE_DROP'] },
+        OR: [{ teamId: user.teamId }, { relatedTeamId: user.teamId }],
+        notes: { not: null },
+      },
+      include: {
+        team: { select: { id: true, name: true } },
+        player: { select: { id: true, fullName: true, positions: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    })
+
+    // Group by tradeId (notes field)
+    const tradeMap = new Map<string, typeof tradeTxs>()
+    for (const tx of tradeTxs) {
+      if (!tx.notes) continue
+      const list = tradeMap.get(tx.notes) ?? []
+      list.push(tx)
+      tradeMap.set(tx.notes, list)
+    }
+
+    const trades = [...tradeMap.entries()].map(([tradeId, txs]) => {
+      const status = txs[0].status
+      const createdAt = txs[0].createdAt
+
+      // Find the two teams involved
+      const teamIds = new Set(txs.map(t => t.teamId))
+      const otherTeamId = [...teamIds].find(id => id !== user.teamId) ?? [...teamIds][0]
+
+      // Players I get (TRADE_ADD where teamId = me)
+      const iGet = txs.filter(t => t.type === 'TRADE_ADD' && t.teamId === user.teamId).map(t => t.player)
+      // Players I give (TRADE_DROP where teamId = me)
+      const iGive = txs.filter(t => t.type === 'TRADE_DROP' && t.teamId === user.teamId).map(t => t.player)
+      // Other team name
+      const otherTeam = txs.find(t => t.teamId === otherTeamId)?.team ?? txs.find(t => t.relatedTeamId === otherTeamId)?.team
+
+      // Am I the one who needs to respond? (I'm the receiver if I have TRADE_DROP pending)
+      const needsMyResponse = txs.some(t => t.type === 'TRADE_DROP' && t.teamId === user.teamId && t.status === 'PENDING')
+
+      return {
+        trade_id: tradeId,
+        status,
+        created_at: createdAt,
+        other_team_name: otherTeam?.name ?? 'Unknown',
+        i_get: iGet.map(p => ({ id: p.id, name: p.fullName })),
+        i_give: iGive.map(p => ({ id: p.id, name: p.fullName })),
+        needs_my_response: needsMyResponse,
+      }
+    })
 
     return NextResponse.json({ success: true, data: trades })
 
   } catch (err: any) {
     if (err.message === 'UNAUTHENTICATED') return authError('UNAUTHENTICATED')
-    console.error('[trades GET]', err)
     return NextResponse.json({ success: false, error: 'Failed' }, { status: 500 })
   }
 }
