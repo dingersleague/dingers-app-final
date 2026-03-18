@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Minus, AlertCircle, RefreshCw, Clock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, Plus, Minus, RefreshCw, Clock, ChevronUp, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useDebounce } from '@/lib/hooks'
@@ -21,22 +21,24 @@ interface Player {
   ownedByTeamName: string | null
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: 'ACT',
-  INJURED_10_DAY: 'IL-10',
-  INJURED_60_DAY: 'IL-60',
-  SUSPENDED: 'SUSP',
-  MINORS: 'MiLB',
-  INACTIVE: 'OUT',
-}
+const POSITIONS = ['ALL', 'C', '1B', '2B', 'SS', '3B', 'OF', 'DH']
+const AVAILABILITY = [
+  { value: 'ALL', label: 'All' },
+  { value: 'FREE_AGENT', label: 'Available' },
+  { value: 'ON_ROSTER', label: 'Rostered' },
+]
 
-const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: 'text-brand',
-  INJURED_10_DAY: 'text-accent-red',
-  INJURED_60_DAY: 'text-accent-red',
-  SUSPENDED: 'text-accent-amber',
-  MINORS: 'text-accent-purple',
-  INACTIVE: 'text-text-muted',
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: 'Active', INJURED_10_DAY: 'IL-10', INJURED_60_DAY: 'IL-60',
+  SUSPENDED: 'SUSP', MINORS: 'MiLB', INACTIVE: 'OUT',
+}
+const STATUS_STYLE: Record<string, string> = {
+  ACTIVE: 'bg-brand/10 text-brand',
+  INJURED_10_DAY: 'bg-red-500/10 text-accent-red',
+  INJURED_60_DAY: 'bg-red-500/10 text-accent-red',
+  SUSPENDED: 'bg-amber-500/10 text-accent-amber',
+  MINORS: 'bg-purple-500/10 text-accent-purple',
+  INACTIVE: 'bg-surface-3 text-text-muted',
 }
 
 export default function PlayerSearchPage() {
@@ -50,18 +52,13 @@ export default function PlayerSearchPage() {
   const [actionPending, setActionPending] = useState<string | null>(null)
   const [showDropModal, setShowDropModal] = useState<Player | null>(null)
   const [waiverClaimPlayer, setWaiverClaimPlayer] = useState<Player | null>(null)
-  const [rosterDetail, setRosterDetail] = useState<Array<{playerId: string; playerName: string; position: string}>>([])
+  const [rosterDetail, setRosterDetail] = useState<Array<{ playerId: string; playerName: string; position: string }>>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
   const debouncedQuery = useDebounce(query, 300)
 
-  useEffect(() => {
-    searchPlayers()
-  }, [debouncedQuery, position, availability])
-
-  useEffect(() => {
-    fetchMyRosterInfo()
-    fetchRosterDetail()
-  }, [])
+  useEffect(() => { searchPlayers() }, [debouncedQuery, position, availability])
+  useEffect(() => { fetchMyRosterInfo(); fetchRosterDetail() }, [])
 
   async function fetchMyRosterInfo() {
     const res = await fetch('/api/roster/info')
@@ -91,46 +88,46 @@ export default function PlayerSearchPage() {
   async function searchPlayers() {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        q: debouncedQuery,
-        position,
-        availability,
-        limit: '50',
-      })
+      const params = new URLSearchParams({ q: debouncedQuery, position, availability, limit: '50' })
       const res = await fetch(`/api/players/search?${params}`)
       const data = await res.json()
       if (data.success) setPlayers(data.data)
-    } catch {
-      toast.error('Search failed')
-    }
+    } catch { toast.error('Search failed') }
     setLoading(false)
   }
 
   async function handleAdd(player: Player) {
-    if (rosterFull) {
-      setShowDropModal(player)
-      return
-    }
-
+    if (rosterFull) { setShowDropModal(player); return }
     setActionPending(player.id)
     try {
       const res = await fetch('/api/transactions/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: player.id }),
       })
       const data = await res.json()
       if (data.success) {
         toast.success(`Added ${player.fullName}`)
         setMyRoster(prev => [...prev, player.id])
-        searchPlayers()
-        fetchMyRosterInfo()
-      } else {
-        toast.error(data.error || 'Could not add player')
-      }
-    } catch {
-      toast.error('Request failed')
-    }
+        searchPlayers(); fetchMyRosterInfo()
+      } else { toast.error(data.error || 'Could not add player') }
+    } catch { toast.error('Request failed') }
+    setActionPending(null)
+  }
+
+  async function handleAddWithDrop(addPlayer: Player, dropPlayerId: string) {
+    setActionPending(addPlayer.id)
+    try {
+      const res = await fetch('/api/transactions/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: addPlayer.id, dropPlayerId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(`Added ${addPlayer.fullName}`)
+        setShowDropModal(null)
+        searchPlayers(); fetchMyRosterInfo(); fetchRosterDetail()
+      } else { toast.error(data.error || 'Could not add player') }
+    } catch { toast.error('Request failed') }
     setActionPending(null)
   }
 
@@ -138,178 +135,222 @@ export default function PlayerSearchPage() {
     setActionPending(player.id)
     try {
       const res = await fetch('/api/transactions/drop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: player.id }),
       })
       const data = await res.json()
       if (data.success) {
         toast.success(`Dropped ${player.fullName}`)
         setMyRoster(prev => prev.filter(id => id !== player.id))
-        searchPlayers()
-        fetchMyRosterInfo()
-      } else {
-        toast.error(data.error || 'Could not drop player')
-      }
-    } catch {
-      toast.error('Request failed')
-    }
+        searchPlayers(); fetchMyRosterInfo(); fetchRosterDetail()
+      } else { toast.error(data.error || 'Could not drop player') }
+    } catch { toast.error('Request failed') }
     setActionPending(null)
   }
 
+  const sorted = [...players].sort((a, b) =>
+    sortDir === 'desc' ? b.seasonHR - a.seasonHR : a.seasonHR - b.seasonHR
+  )
+
+  const headshotUrl = (mlbId: number) =>
+    `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_80,q_auto:best/v1/people/${mlbId}/headshot/67/current`
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
+      {/* Header */}
       <div>
         <h1 className="font-display font-black text-4xl tracking-tight">Players</h1>
-        <p className="text-text-muted text-sm mt-1">Search, add, and drop players from the MLB player pool</p>
+        <p className="text-text-muted text-sm mt-1">Search and manage your roster</p>
       </div>
 
-      {/* Search and filters */}
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              type="text"
-              className="input pl-9"
-              placeholder="Search players by name..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
-          </div>
+      {/* Search bar */}
+      <div className="relative">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
+        <input
+          type="text"
+          className="w-full bg-surface-2 border border-surface-border rounded-xl pl-11 pr-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/20 transition-all"
+          placeholder="Search by player name..."
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+        />
+      </div>
 
-          <select
-            value={position}
-            onChange={e => setPosition(e.target.value)}
-            className="input sm:w-32"
-          >
-            <option value="ALL">All Positions</option>
-            <option value="C">C</option>
-            <option value="1B">1B</option>
-            <option value="2B">2B</option>
-            <option value="SS">SS</option>
-            <option value="3B">3B</option>
-            <option value="OF">OF</option>
-            <option value="DH">DH</option>
-          </select>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Position pills */}
+        <div className="flex gap-1.5 flex-wrap flex-1">
+          {POSITIONS.map(pos => (
+            <button
+              key={pos}
+              onClick={() => setPosition(pos)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                position === pos
+                  ? 'bg-brand text-surface-0'
+                  : 'bg-surface-3 text-text-muted hover:text-text-primary hover:bg-surface-4'
+              }`}
+            >
+              {pos}
+            </button>
+          ))}
+        </div>
 
-          <select
-            value={availability}
-            onChange={e => setAvailability(e.target.value)}
-            className="input sm:w-36"
-          >
-            <option value="ALL">All Players</option>
-            <option value="FREE_AGENT">Free Agents</option>
-            <option value="ON_ROSTER">Rostered</option>
-          </select>
+        {/* Availability tabs */}
+        <div className="flex bg-surface-3 rounded-lg p-0.5">
+          {AVAILABILITY.map(a => (
+            <button
+              key={a.value}
+              onClick={() => setAvailability(a.value)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                availability === a.value
+                  ? 'bg-surface-1 text-text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              {a.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Results */}
+      {/* Table */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
-          <div className="table-header">
-            {loading ? 'Searching...' : `${players.length} players`}
-          </div>
-          <div className="flex items-center gap-6 table-header">
-            <span className="w-16 text-center">Season HR</span>
-            <span className="w-20 text-center">Status</span>
-            <span className="w-24">Owner</span>
-            <span className="w-16"></span>
-          </div>
+        {/* Header row */}
+        <div className="flex items-center px-4 py-2.5 border-b border-surface-border bg-surface-1/50 text-[11px] uppercase tracking-wider text-text-muted font-semibold">
+          <div className="w-10" /> {/* headshot */}
+          <div className="flex-1 min-w-0">Player</div>
+          <div className="w-14 text-center hidden sm:block">POS</div>
+          <div className="w-16 text-center hidden sm:block">Team</div>
+          <div className="w-16 text-center hidden md:block">Status</div>
+          <button
+            onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+            className="w-16 text-center flex items-center justify-center gap-0.5 hover:text-text-primary transition-colors"
+          >
+            HR {sortDir === 'desc' ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
+          </button>
+          <div className="w-24 text-center hidden lg:block">Owner</div>
+          <div className="w-24 text-right">Action</div>
         </div>
 
+        {/* Loading */}
         {loading ? (
-          <div className="flex items-center justify-center h-32">
+          <div className="flex items-center justify-center h-40">
             <RefreshCw className="animate-spin text-brand" size={20} />
           </div>
-        ) : players.length === 0 ? (
-          <div className="text-center py-12 text-text-muted">
-            <Search size={32} className="mx-auto mb-3 opacity-40" />
-            <p>No players found</p>
+        ) : sorted.length === 0 ? (
+          <div className="text-center py-16 text-text-muted">
+            <Search size={32} className="mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No players found</p>
           </div>
         ) : (
-          <div className="divide-y divide-surface-border/50">
-            {players.map(player => {
+          <div>
+            {sorted.map((player, i) => {
               const isOnMyRoster = myRoster.includes(player.id)
               const isPending = actionPending === player.id
 
               return (
-                <div key={player.id} className="flex items-center gap-3 px-4 py-3 table-row">
-                  {/* Player info */}
+                <div
+                  key={player.id}
+                  className={`flex items-center px-4 py-2.5 border-b border-surface-border/30 transition-colors hover:bg-surface-1/30 ${
+                    isOnMyRoster ? 'bg-brand/3' : ''
+                  }`}
+                >
+                  {/* Headshot */}
+                  <div className="w-10 flex-shrink-0">
+                    <img
+                      src={headshotUrl(player.mlbId)}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover bg-surface-3"
+                      loading="lazy"
+                    />
+                  </div>
+
+                  {/* Name + mobile info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/players/${player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
-                        {player.fullName}
-                      </Link>
-                      {isOnMyRoster && (
-                        <span className="badge-brand text-xs">Yours</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-text-muted">
-                      {player.positions.join('/')} · {player.mlbTeamAbbr ?? 'FA'}
+                    <Link
+                      href={`/players/${player.id}`}
+                      className="font-medium text-sm text-text-primary hover:text-brand transition-colors truncate block"
+                    >
+                      {player.fullName}
+                      {isOnMyRoster && <span className="ml-1.5 text-[10px] text-brand font-bold">MY TEAM</span>}
+                    </Link>
+                    <div className="text-xs text-text-muted sm:hidden">
+                      {player.positions.join('/')} · {player.mlbTeamAbbr ?? 'FA'} · {player.seasonHR} HR
                     </div>
                   </div>
 
-                  {/* Season HRs */}
+                  {/* Position */}
+                  <div className="w-14 text-center hidden sm:block">
+                    <span className="text-xs font-mono text-text-secondary">{player.positions.join('/')}</span>
+                  </div>
+
+                  {/* MLB Team */}
+                  <div className="w-16 text-center hidden sm:block">
+                    <span className="text-xs font-mono text-text-muted">{player.mlbTeamAbbr ?? '—'}</span>
+                  </div>
+
+                  {/* Status */}
+                  <div className="w-16 text-center hidden md:block">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${STATUS_STYLE[player.status] ?? 'bg-surface-3 text-text-muted'}`}>
+                      {STATUS_LABEL[player.status] ?? player.status}
+                    </span>
+                  </div>
+
+                  {/* HR */}
                   <div className="w-16 text-center">
-                    <span className={`font-display font-black text-xl ${player.seasonHR > 20 ? 'text-brand' : 'text-text-primary'}`}>
+                    <span className={`font-display font-black text-lg ${
+                      player.seasonHR >= 30 ? 'text-brand' : player.seasonHR >= 15 ? 'text-text-primary' : 'text-text-muted'
+                    }`}>
                       {player.seasonHR}
                     </span>
                   </div>
 
-                  {/* Status */}
-                  <div className="w-20 text-center">
-                    <span className={`font-mono text-xs font-semibold ${STATUS_COLORS[player.status] ?? 'text-text-muted'}`}>
-                      {STATUS_LABELS[player.status] ?? player.status}
-                    </span>
-                  </div>
-
                   {/* Owner */}
-                  <div className="w-24">
+                  <div className="w-24 text-center hidden lg:block">
                     {player.ownedByTeamName ? (
-                      <Link href={`/teams/${player.ownedByTeamId}`} className="text-xs text-text-muted truncate block hover:text-brand transition-colors">{player.ownedByTeamName}</Link>
+                      <Link
+                        href={`/teams/${player.ownedByTeamId}`}
+                        className="text-[11px] text-text-muted hover:text-brand transition-colors truncate block"
+                      >
+                        {player.ownedByTeamName}
+                      </Link>
                     ) : (
-                      <span className="badge-brand text-xs">Free Agent</span>
+                      <span className="text-[11px] text-brand font-semibold">FA</span>
                     )}
                   </div>
 
-                  {/* Action */}
-                  <div className="w-20 flex justify-end gap-1">
+                  {/* Action button */}
+                  <div className="w-24 flex justify-end">
                     {isOnMyRoster ? (
                       <button
                         onClick={() => handleDrop(player)}
                         disabled={isPending}
-                        className="p-2 rounded-lg bg-red-500/10 text-accent-red hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                        title="Drop player"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 text-accent-red hover:bg-red-500/20 transition-all text-xs font-semibold disabled:opacity-50"
                       >
-                        {isPending ? <RefreshCw size={14} className="animate-spin" /> : <Minus size={14} />}
+                        {isPending ? <RefreshCw size={12} className="animate-spin" /> : <Minus size={12} />}
+                        Drop
                       </button>
                     ) : !player.isOnRoster ? (
                       player.isOnWaivers ? (
-                        // Player in 3-day waiver window — must go through waiver claim (FAAB or priority)
                         <button
                           onClick={() => setWaiverClaimPlayer(player)}
                           disabled={isPending}
-                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/20 transition-colors disabled:opacity-50 text-xs font-semibold"
-                          title="Submit waiver claim"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/10 text-accent-amber hover:bg-amber-500/20 transition-all text-xs font-semibold disabled:opacity-50"
                         >
                           <Clock size={12} />
                           Claim
                         </button>
                       ) : (
-                        // Free agent — immediate add
                         <button
                           onClick={() => handleAdd(player)}
                           disabled={isPending}
-                          className="p-2 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition-colors disabled:opacity-50"
-                          title="Add free agent"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition-all text-xs font-semibold disabled:opacity-50"
                         >
-                          {isPending ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
+                          {isPending ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
+                          Add
                         </button>
                       )
                     ) : (
-                      <span className="text-xs text-text-muted">Rostered</span>
+                      <span className="text-[11px] text-text-muted px-2">Taken</span>
                     )}
                   </div>
                 </div>
@@ -317,17 +358,54 @@ export default function PlayerSearchPage() {
             })}
           </div>
         )}
+
+        {/* Footer with count */}
+        {!loading && sorted.length > 0 && (
+          <div className="px-4 py-2.5 border-t border-surface-border bg-surface-1/30 text-xs text-text-muted">
+            Showing {sorted.length} players {position !== 'ALL' && `· ${position}`} {availability === 'FREE_AGENT' && '· Free agents only'}
+          </div>
+        )}
       </div>
-      {/* Waiver claim modal — shown for players in the 3-day waiver window */}
+
+      {/* Drop modal (roster full) */}
+      {showDropModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowDropModal(null)}>
+          <div className="card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="font-display font-bold text-xl mb-1">Roster Full</h3>
+            <p className="text-sm text-text-muted mb-4">
+              Drop a player to add <span className="text-brand font-semibold">{showDropModal.fullName}</span>
+            </p>
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {rosterDetail.map(slot => (
+                <button
+                  key={slot.playerId}
+                  onClick={() => handleAddWithDrop(showDropModal, slot.playerId)}
+                  disabled={!!actionPending}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-500/10 transition-colors text-left"
+                >
+                  <span className="font-mono text-xs text-text-muted w-8">{slot.position}</span>
+                  <span className="flex-1 text-sm text-text-primary">{slot.playerName}</span>
+                  <Minus size={14} className="text-accent-red" />
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowDropModal(null)}
+              className="mt-4 btn-secondary w-full text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Waiver claim modal */}
       {waiverClaimPlayer && (
         <WaiverClaimModal
           player={waiverClaimPlayer}
           myRoster={rosterDetail}
           onClose={() => setWaiverClaimPlayer(null)}
-          onSubmitted={() => {
-            setWaiverClaimPlayer(null)
-            fetchMyRosterInfo()
-          }}
+          onSubmitted={() => { setWaiverClaimPlayer(null); fetchMyRosterInfo() }}
         />
       )}
     </div>
