@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_ROSTER_SIZE = 13 // 9 starters + 4 bench
+const MAX_ROSTER_SIZE = 14 // 9 starters + 4 bench + 1 IL
 
 const AddSchema = z.object({
   playerId: z.string().cuid(),

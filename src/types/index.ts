@@ -11,20 +11,24 @@ export type DraftStatus = 'PENDING' | 'ACTIVE' | 'COMPLETE' | 'PAUSED'
 export type WaiverType = 'PRIORITY' | 'FAAB' | 'FREE_AGENCY'
 
 // All valid lineup positions
-export const LINEUP_POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN'] as const
+export const LINEUP_POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN', 'IL'] as const
 export const STARTER_POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL'] as const
 export const BENCH_POSITIONS = ['BN', 'BN', 'BN', 'BN'] as const
+
+// Injured players eligible for IL slot
+export const IL_STATUSES = ['INJURED_10_DAY', 'INJURED_60_DAY'] as const
 
 // Position eligibility map: position slot -> which player positions can fill it
 export const POSITION_ELIGIBILITY: Record<string, string[]> = {
   C:    ['C'],
-  '1B': ['1B', '3B'],           // 1B slot can also hold 3B who have 1B eligibility
+  '1B': ['1B', '3B'],
   '2B': ['2B', 'SS'],
   SS:   ['SS', '2B'],
   '3B': ['3B', '1B'],
   OF:   ['OF', 'LF', 'CF', 'RF'],
   UTIL: ['C', '1B', '2B', 'SS', '3B', 'OF', 'LF', 'CF', 'RF', 'DH'],
   BN:   ['C', '1B', '2B', 'SS', '3B', 'OF', 'LF', 'CF', 'RF', 'DH', 'SP', 'RP', 'P'],
+  IL:   ['C', '1B', '2B', 'SS', '3B', 'OF', 'LF', 'CF', 'RF', 'DH', 'SP', 'RP', 'P'], // any position, but player must be on IL
 }
 
 export interface SessionUser {

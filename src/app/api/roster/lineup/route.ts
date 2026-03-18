@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, authError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isLineupLocked, canPlayInSlot } from '@/lib/scoring'
+import { IL_STATUSES } from '@/types'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic' // prevent static build-time evaluation
@@ -66,13 +67,29 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid roster slots' }, { status: 400 })
     }
 
-    const slotMap = new Map<string, typeof ownedSlots[0]>(ownedSlots.map(s => [s.id, s]))
+    // Also fetch player status for IL validation
+    const ownedSlotsWithStatus = await prisma.rosterSlot.findMany({
+      where: { id: { in: rosterSlotIds }, teamId: user.teamId },
+      include: { player: { select: { positions: true, fullName: true, status: true } } },
+    })
+    const slotMap = new Map<string, typeof ownedSlotsWithStatus[0]>(ownedSlotsWithStatus.map(s => [s.id, s]))
 
-    // Validate position eligibility
+    // Validate position eligibility + IL rules
     for (const slot of lineup) {
       if (!slot.rosterSlotId) continue
       const rosterSlot = slotMap.get(slot.rosterSlotId)
       if (!rosterSlot) continue
+
+      // IL slot: only injured players allowed
+      if (slot.position === 'IL') {
+        if (!IL_STATUSES.includes(rosterSlot.player.status as any)) {
+          return NextResponse.json({
+            success: false,
+            error: `${rosterSlot.player.fullName} is not on the injured list and cannot be placed in the IL slot`,
+          }, { status: 400 })
+        }
+        continue // skip normal position eligibility check for IL
+      }
 
       if (!canPlayInSlot(rosterSlot.player.positions, slot.position)) {
         return NextResponse.json({
@@ -88,6 +105,8 @@ export async function PUT(req: NextRequest) {
         if (!slot.rosterSlotId) continue
 
         const isBench = slot.position === 'BN'
+        const isIL = slot.position === 'IL'
+        const slotType = isIL ? 'INJURED_LIST' as const : isBench ? 'BENCH' as const : 'STARTER' as const
 
         // Update lineup slot
         await tx.lineupSlot.upsert({
@@ -101,21 +120,18 @@ export async function PUT(req: NextRequest) {
             matchupId: matchup.id,
             rosterSlotId: slot.rosterSlotId,
             position: slot.position,
-            isStarter: !isBench,
+            isStarter: !isBench && !isIL,
           },
           update: {
             position: slot.position,
-            isStarter: !isBench,
+            isStarter: !isBench && !isIL,
           },
         })
 
         // Update roster slot type
         await tx.rosterSlot.update({
           where: { id: slot.rosterSlotId },
-          data: {
-            slotType: isBench ? 'BENCH' : 'STARTER',
-            position: slot.position,
-          },
+          data: { slotType, position: slot.position },
         })
       }
     })
