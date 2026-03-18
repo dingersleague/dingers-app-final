@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="76" fill="#0a0f1a"/>
+  <circle cx="256" cy="220" r="140" fill="#00dc52"/>
+  <text x="256" y="240" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-weight="900" font-size="130" fill="#0a0f1a">HR</text>
+  <text x="256" y="400" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="56" fill="#f0f4ff">DINGERS</text>
+</svg>

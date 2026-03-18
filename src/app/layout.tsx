@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from 'sonner'
+import ServiceWorker from '@/components/ServiceWorker'
 
 /**
  * Font strategy: CSS custom properties defined in globals.css using system font
@@ -17,13 +18,35 @@ export const metadata: Metadata = {
   title: { default: 'DINGERS | Fantasy HR League', template: '%s | DINGERS' },
   description: 'Fantasy baseball. One stat. Home runs only.',
   themeColor: '#0a0f1a',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'DINGERS',
+  },
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
       <body className="font-body bg-surface-0 text-text-primary antialiased min-h-screen">
         {children}
+        <ServiceWorker />
         <Toaster
           theme="dark"
           position="top-right"
