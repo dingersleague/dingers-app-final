@@ -18,11 +18,10 @@ import { POSITION_ELIGIBILITY, STARTER_POSITIONS } from '@/types'
 /**
  * Determine if lineups are locked for a given week.
  *
- * Reads lock hour from League.lineupLockHour (default: 1 = 1:00 AM UTC).
- * The lock occurs at the start of the scoring week (weekStartDate) at that hour.
+ * Lock occurs on Monday at noon UTC (the day before the scoring week starts on Tuesday).
+ * This gives owners until Monday noon to set lineups after the free agency window closes.
  *
- * Pass the league object to use DB-configured settings.
- * Falls back to hardcoded defaults for backward compat when league is unavailable.
+ * The lock time is calculated as: weekStartDate minus 1 day (Monday), at lineupLockHour.
  */
 export function isLineupLocked(
   weekStartDate: Date,
@@ -36,8 +35,9 @@ export function getLineupLockTime(
   weekStartDate: Date,
   league?: { lineupLockHour: number } | null
 ): Date {
-  const lockHour = league?.lineupLockHour ?? 1
+  const lockHour = league?.lineupLockHour ?? 12
   const lock = new Date(weekStartDate)
+  lock.setUTCDate(lock.getUTCDate() - 1) // Monday (day before Tuesday start)
   lock.setUTCHours(lockHour, 0, 0, 0)
   return lock
 }

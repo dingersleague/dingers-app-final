@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, authError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isWaiverWindowClosed } from '@/lib/roster-lock'
 import { z } from 'zod'
 
-export const dynamic = 'force-dynamic' // prevent static build-time evaluation
+export const dynamic = 'force-dynamic'
 
-// POST /api/waivers — submit a waiver claim
-// Accepts faabBid when league.waiverType === 'FAAB'.
-// In PRIORITY mode, faabBid is ignored.
-// In FAAB mode:
-//   - faabBid is required
-//   - bid must be >= 1 (or >= 0 if league.faabAllowZeroBid)
-//   - bid must not exceed team.faabBalance
-//   - bid is stored on the transaction but NOT deducted here;
-//     deduction happens atomically inside processWaiverClaims() after the claim wins
+// POST /api/waivers — submit a waiver claim (FAAB blind bid or priority)
+// Claims lock Monday 1 AM UTC. Processed Monday 1 AM. Reopen after Tuesday rollover.
 const WaiverSchema = z.object({
   playerId: z.string().cuid(),
   dropPlayerId: z.string().cuid().optional(),
@@ -25,6 +19,13 @@ export async function POST(req: NextRequest) {
     const user = await requireAuth()
     if (!user.teamId || !user.leagueId) {
       return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
+    }
+
+    if (isWaiverWindowClosed()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Waiver claims are locked. Claims process Monday at 1 AM and reopen after Tuesday rollover.',
+      }, { status: 423 })
     }
 
     const body = await req.json()
@@ -129,8 +130,8 @@ export async function POST(req: NextRequest) {
 
     const message =
       league.waiverType === 'FAAB'
-        ? `Claim submitted with $${faabBid} bid. Claims process Tuesday morning — highest bid wins.`
-        : 'Waiver claim submitted. Claims process Tuesday morning in priority order.'
+        ? `Claim submitted with $${faabBid} bid. Claims process Monday 1 AM — highest bid wins.`
+        : 'Waiver claim submitted. Claims process Monday 1 AM in priority order.'
 
     return NextResponse.json({ success: true, message })
 
@@ -146,6 +147,13 @@ export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuth()
     if (!user.teamId) return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
+
+    if (isWaiverWindowClosed()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Waiver claims are locked and cannot be cancelled right now.',
+      }, { status: 423 })
+    }
 
     const { searchParams } = req.nextUrl
     const playerId = searchParams.get('playerId')
@@ -169,14 +177,16 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// GET /api/waivers — pending claims + FAAB context for the current team
-// Returns waiverType and faabBalance so the UI knows which mode to render.
+// GET /api/waivers — pending claims + FAAB context + lock status
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuth()
     if (!user.teamId || !user.leagueId) {
       return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
     }
+
+    const { getTransactionWindowStatus } = await import('@/lib/roster-lock')
+    const windowStatus = getTransactionWindowStatus()
 
     const [claims, team, league] = await Promise.all([
       prisma.transaction.findMany({
@@ -210,6 +220,7 @@ export async function GET(req: NextRequest) {
         faabBudget: league.faabBudget,
         faabAllowZeroBid: league.faabAllowZeroBid,
         waiverPriority: team.waiverPriority,
+        ...windowStatus,
       },
     })
 

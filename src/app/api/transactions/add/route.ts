@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, authError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isRosterLocked } from '@/lib/roster-lock'
 import { z } from 'zod'
 
-export const dynamic = 'force-dynamic' // prevent static build-time evaluation
+export const dynamic = 'force-dynamic'
 
 const MAX_ROSTER_SIZE = 13 // 9 starters + 4 bench
 
 const AddSchema = z.object({
   playerId: z.string().cuid(),
-  dropPlayerId: z.string().cuid().optional(),  // Required if roster is full
+  dropPlayerId: z.string().cuid().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -17,6 +18,13 @@ export async function POST(req: NextRequest) {
     const user = await requireAuth()
     if (!user.teamId || !user.leagueId) {
       return NextResponse.json({ success: false, error: 'No team or league' }, { status: 404 })
+    }
+
+    if (isRosterLocked()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Roster moves are locked. Rosters unlock after Tuesday rollover.',
+      }, { status: 423 })
     }
 
     const body = await req.json()

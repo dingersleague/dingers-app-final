@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, authError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isRosterLocked } from '@/lib/roster-lock'
 import { z } from 'zod'
 
-export const dynamic = 'force-dynamic' // prevent static build-time evaluation
+export const dynamic = 'force-dynamic'
 
 const DropSchema = z.object({
   playerId: z.string().cuid(),
@@ -14,6 +15,13 @@ export async function POST(req: NextRequest) {
     const user = await requireAuth()
     if (!user.teamId || !user.leagueId) {
       return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
+    }
+
+    if (isRosterLocked()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Roster moves are locked. Rosters unlock after Tuesday rollover.',
+      }, { status: 423 })
     }
 
     const body = await req.json()

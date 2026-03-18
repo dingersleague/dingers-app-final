@@ -37,8 +37,8 @@ model League {
   status          LeagueStatus  @default(SETUP)
   currentWeek     Int           @default(0)
   waiverType      WaiverType    @default(PRIORITY)
-  lineupLockDay   String        @default("Tuesday")   // Day of week lineups lock
-  lineupLockHour  Int           @default(1)            // Hour (UTC) lineup locks
+  lineupLockDay   String        @default("Monday")    // Day of week lineups lock
+  lineupLockHour  Int           @default(12)           // Hour (UTC) lineups lock (noon)
   playoffWeekStart Int          @default(22)
   maxTeams        Int           @default(12)
   benchSpots      Int           @default(4)
