@@ -5,6 +5,7 @@ import { Zap, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import TeamLogo from '@/components/TeamLogo'
+import RefreshScoresButton from '@/components/RefreshScoresButton'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 60
@@ -133,11 +134,14 @@ export default async function MatchupDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Back link */}
-      <Link href="/schedule" className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-brand transition-colors">
-        <ArrowLeft size={14} />
-        Schedule
-      </Link>
+      {/* Nav row */}
+      <div className="flex items-center justify-between">
+        <Link href="/schedule" className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-brand transition-colors">
+          <ArrowLeft size={14} />
+          Schedule
+        </Link>
+        {matchup.status !== 'COMPLETE' && <RefreshScoresButton />}
+      </div>
 
       {/* Scoreboard */}
       <div className="card overflow-hidden">

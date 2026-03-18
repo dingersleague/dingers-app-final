@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import { Zap, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
+import RefreshScoresButton from '@/components/RefreshScoresButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,6 +157,11 @@ export default async function MatchupPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {matchup.status !== 'COMPLETE' && (
+        <div className="flex justify-end">
+          <RefreshScoresButton />
+        </div>
+      )}
       {/* Scoreboard */}
       <div className="card overflow-hidden">
         <div className="bg-hero-gradient p-6 lg:p-8">
