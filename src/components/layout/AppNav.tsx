@@ -5,12 +5,13 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   Trophy, Users, Calendar, TrendingUp, Search,
-  Shuffle, ArrowLeftRight, Settings, LogOut, Menu, X, Zap, Home
+  Shuffle, ArrowLeftRight, Settings, LogOut, Menu, X, Zap, Home, Target
 } from 'lucide-react'
 import { SessionUser } from '@/types'
 
 interface NavProps {
   user: SessionUser
+  leagueStatus: string | null
 }
 
 const navItems = [
@@ -24,7 +25,7 @@ const navItems = [
   { href: '/trades', label: 'Trades', icon: ArrowLeftRight },
 ]
 
-export default function AppNav({ user }: NavProps) {
+export default function AppNav({ user, leagueStatus }: NavProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -47,6 +48,22 @@ export default function AppNav({ user }: NavProps) {
 
         {/* Nav links */}
         <div className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
+          {(leagueStatus === 'PREDRAFT' || leagueStatus === 'DRAFT') && (
+            <Link
+              href="/draft"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 mb-1 ${
+                pathname.startsWith('/draft')
+                  ? 'bg-brand/10 text-brand shadow-brand-sm'
+                  : 'bg-brand/5 text-brand hover:bg-brand/10 border border-brand/20'
+              }`}
+            >
+              <Target size={16} />
+              Draft Room
+              {leagueStatus === 'DRAFT' && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-brand animate-pulse" />
+              )}
+            </Link>
+          )}
           {navItems.map(item => {
             const active = pathname.startsWith(item.href)
             return (
@@ -127,6 +144,21 @@ export default function AppNav({ user }: NavProps) {
 
         {mobileOpen && (
           <div className="bg-surface-1 border-t border-surface-border px-4 py-4 flex flex-col gap-1">
+            {(leagueStatus === 'PREDRAFT' || leagueStatus === 'DRAFT') && (
+              <Link
+                href="/draft"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
+                  pathname.startsWith('/draft') ? 'bg-brand/10 text-brand' : 'bg-brand/5 text-brand border border-brand/20'
+                }`}
+              >
+                <Target size={16} />
+                Draft Room
+                {leagueStatus === 'DRAFT' && (
+                  <span className="ml-auto w-2 h-2 rounded-full bg-brand animate-pulse" />
+                )}
+              </Link>
+            )}
             {navItems.map(item => {
               const active = pathname.startsWith(item.href)
               return (
