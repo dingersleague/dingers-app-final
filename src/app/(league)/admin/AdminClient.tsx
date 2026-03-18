@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { RefreshCw, Play, Calendar, Users, Settings, CheckCircle, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
@@ -19,6 +20,7 @@ function ChevronRight({ size, className }: { size: number; className?: string })
 }
 
 export default function AdminClient({ league, syncLogs }: AdminClientProps) {
+  const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [seasonStartDate, setSeasonStartDate] = useState('2025-04-01')
   const [timerSeconds, setTimerSeconds] = useState(90)
@@ -59,6 +61,10 @@ export default function AdminClient({ league, syncLogs }: AdminClientProps) {
       const data = await res.json()
       if (data.success) {
         toast.success(data.message || 'Success')
+        router.refresh() // Re-fetch server data so buttons update
+        if (action === 'start_draft') {
+          router.push('/draft')
+        }
       } else {
         toast.error(data.error || 'Action failed')
       }
