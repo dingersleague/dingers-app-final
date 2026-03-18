@@ -66,21 +66,21 @@ export default async function SchedulePage() {
 
               {/* My matchup highlight */}
               {myMatchup && (
-                <div className="px-4 py-3 bg-brand/3 border-b border-surface-border/50">
+                <Link href={`/matchup/${myMatchup.id}`} className="block px-4 py-3 bg-brand/3 border-b border-surface-border/50 hover:bg-brand/8 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Link href={`/teams/${myMatchup.homeTeam.id}`} className={`font-medium text-sm hover:underline ${myMatchup.homeTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
+                      <span className={`font-medium text-sm ${myMatchup.homeTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
                         {myMatchup.homeTeam.name}
-                      </Link>
+                      </span>
                       <span className="font-display font-bold text-lg text-text-primary">
                         {myMatchup.status === 'SCHEDULED' ? '—' : myMatchup.homeScore}
                       </span>
                     </div>
                     <span className="text-text-muted text-xs font-mono px-3">VS</span>
                     <div className="flex items-center gap-3 flex-row-reverse">
-                      <Link href={`/teams/${myMatchup.awayTeam.id}`} className={`font-medium text-sm hover:underline ${myMatchup.awayTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
+                      <span className={`font-medium text-sm ${myMatchup.awayTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
                         {myMatchup.awayTeam.name}
-                      </Link>
+                      </span>
                       <span className="font-display font-bold text-lg text-text-primary">
                         {myMatchup.status === 'SCHEDULED' ? '—' : myMatchup.awayScore}
                       </span>
@@ -97,7 +97,7 @@ export default async function SchedulePage() {
                       )}
                     </div>
                   </div>
-                </div>
+                </Link>
               )}
 
               {/* All matchups this week */}
@@ -105,14 +105,14 @@ export default async function SchedulePage() {
                 {week.matchups
                   .filter(m => !(m.homeTeamId === team.id || m.awayTeamId === team.id))
                   .map(m => (
-                  <div key={m.id} className="flex items-center gap-2 px-4 py-2.5 text-sm">
-                    <Link href={`/teams/${m.homeTeam.id}`} className="flex-1 text-text-secondary truncate hover:text-brand transition-colors">{m.homeTeam.abbreviation}</Link>
+                  <Link key={m.id} href={`/matchup/${m.id}`} className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-surface-1/80 transition-colors">
+                    <span className="flex-1 text-text-secondary truncate">{m.homeTeam.abbreviation}</span>
                     <span className="font-mono text-text-muted text-xs">
                       {m.status === 'SCHEDULED' ? 'vs' :
                        `${m.homeScore}–${m.awayScore}`}
                     </span>
-                    <Link href={`/teams/${m.awayTeam.id}`} className="flex-1 text-right text-text-secondary truncate hover:text-brand transition-colors">{m.awayTeam.abbreviation}</Link>
-                  </div>
+                    <span className="flex-1 text-right text-text-secondary truncate">{m.awayTeam.abbreviation}</span>
+                  </Link>
                 ))}
               </div>
             </div>

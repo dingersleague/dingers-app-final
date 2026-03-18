@@ -125,7 +125,7 @@ export default async function DashboardPage() {
         {/* Current Matchup Card */}
         <div className="lg:col-span-2">
           {currentMatchup ? (
-            <Link href="/matchup" className="card-hover p-6 block group">
+            <Link href={`/matchup/${currentMatchup.id}`} className="card-hover p-6 block group">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Zap size={16} className="text-brand" />
