@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Trophy, Users } from 'lucide-react'
+import TeamLogo from '@/components/TeamLogo'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,13 +90,23 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
           <ArrowLeft size={14} /> Back to standings
         </Link>
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-display font-black text-4xl tracking-tight leading-tight">
-              {team.name}
-            </h1>
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
-              <span className="badge-secondary font-mono">{team.abbreviation}</span>
-              <span className="text-text-muted text-sm">Owner: {team.user.name}</span>
+          <div className="flex items-center gap-4">
+            <TeamLogo
+              logoUrl={team.logoUrl}
+              abbreviation={team.abbreviation}
+              primaryColor={team.primaryColor}
+              secondaryColor={team.secondaryColor}
+              size="xl"
+            />
+            <div>
+              <h1 className="font-display font-black text-4xl tracking-tight leading-tight"
+                  style={team.primaryColor ? { color: team.primaryColor } : undefined}>
+                {team.name}
+              </h1>
+              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                <span className="badge-secondary font-mono">{team.abbreviation}</span>
+                <span className="text-text-muted text-sm">Owner: {team.user.name}</span>
+              </div>
             </div>
           </div>
           <div className="text-right flex-shrink-0">

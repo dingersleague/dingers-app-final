@@ -2,6 +2,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Trophy, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
+import TeamLogo from '@/components/TeamLogo'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,11 +138,22 @@ export default async function StandingsPage() {
 
                     {/* Team name */}
                     <td className="px-4 py-3">
-                      <Link href={`/teams/${row.team.id}`} className={`font-medium text-sm hover:underline ${isMe ? 'text-brand' : 'text-text-primary'}`}>
-                        {row.team.name}
-                        {isMe && <span className="ml-1.5 badge-brand text-xs">You</span>}
+                      <Link href={`/teams/${row.team.id}`} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+                        <TeamLogo
+                          logoUrl={row.team.logoUrl}
+                          abbreviation={row.team.abbreviation}
+                          primaryColor={row.team.primaryColor}
+                          secondaryColor={row.team.secondaryColor}
+                          size="sm"
+                        />
+                        <div>
+                          <div className={`font-medium text-sm ${isMe ? 'text-brand' : 'text-text-primary'}`}>
+                            {row.team.name}
+                            {isMe && <span className="ml-1.5 badge-brand text-xs">You</span>}
+                          </div>
+                          <div className="text-xs text-text-muted">{row.team.user.name}</div>
+                        </div>
                       </Link>
-                      <div className="text-xs text-text-muted">{row.team.user.name}</div>
                     </td>
 
                     <td className="px-4 py-3 text-center font-display font-bold text-base text-text-primary">{row.wins}</td>

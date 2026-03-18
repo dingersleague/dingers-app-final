@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   Trophy, Users, Calendar, TrendingUp, Search,
-  Shuffle, ArrowLeftRight, Settings, LogOut, Menu, X, Zap, Home, Target
+  Shuffle, ArrowLeftRight, Settings, LogOut, Menu, X, Zap, Home, Target, Palette
 } from 'lucide-react'
 import { SessionUser } from '@/types'
 
@@ -23,6 +23,7 @@ const navItems = [
   { href: '/schedule', label: 'Schedule', icon: Calendar },
   { href: '/transactions', label: 'Transactions', icon: Shuffle },
   { href: '/trades', label: 'Trades', icon: ArrowLeftRight },
+  { href: '/team/settings', label: 'Team Settings', icon: Palette },
 ]
 
 export default function AppNav({ user, leagueStatus }: NavProps) {

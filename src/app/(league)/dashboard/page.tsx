@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Trophy, TrendingUp, Zap, Clock, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
+import TeamLogo from '@/components/TeamLogo'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +56,7 @@ async function getDashboardData(userId: string) {
     take: 5,
     select: {
       id: true, name: true, abbreviation: true,
+      logoUrl: true, primaryColor: true, secondaryColor: true,
       wins: true, losses: true, ties: true, pointsFor: true,
     },
   })
@@ -239,6 +241,7 @@ export default async function DashboardPage() {
                 <span className={`font-display font-bold text-lg w-6 text-center ${
                   i === 0 ? 'text-accent-amber' : 'text-text-muted'
                 }`}>{i + 1}</span>
+                <TeamLogo logoUrl={t.logoUrl} abbreviation={t.abbreviation} primaryColor={t.primaryColor} secondaryColor={t.secondaryColor} size="sm" />
                 <Link href={`/teams/${t.id}`} className={`flex-1 text-sm font-medium hover:underline ${t.id === team.id ? 'text-brand' : 'text-text-primary'}`}>
                   {t.name}
                 </Link>

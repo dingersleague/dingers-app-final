@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { Zap, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import TeamLogo from '@/components/TeamLogo'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 60
@@ -161,6 +162,9 @@ export default async function MatchupDetailPage({ params }: { params: { id: stri
           <div className="flex items-center justify-between">
             {/* Home team */}
             <div className="flex-1 text-center">
+              <div className="flex justify-center mb-2">
+                <TeamLogo logoUrl={matchup.homeTeam.logoUrl} abbreviation={matchup.homeTeam.abbreviation} primaryColor={matchup.homeTeam.primaryColor} secondaryColor={matchup.homeTeam.secondaryColor} size="lg" />
+              </div>
               <div className={`font-display font-black text-7xl lg:text-8xl leading-none ${
                 homeWinning ? 'text-brand glow-brand' : 'text-text-primary'
               }`}>
@@ -186,6 +190,9 @@ export default async function MatchupDetailPage({ params }: { params: { id: stri
 
             {/* Away team */}
             <div className="flex-1 text-center">
+              <div className="flex justify-center mb-2">
+                <TeamLogo logoUrl={matchup.awayTeam.logoUrl} abbreviation={matchup.awayTeam.abbreviation} primaryColor={matchup.awayTeam.primaryColor} secondaryColor={matchup.awayTeam.secondaryColor} size="lg" />
+              </div>
               <div className={`font-display font-black text-7xl lg:text-8xl leading-none ${
                 awayWinning ? 'text-brand glow-brand' : 'text-text-primary'
               }`}>

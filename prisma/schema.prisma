@@ -96,7 +96,9 @@ model Team {
   userId          String    @unique
   name            String
   abbreviation    String    @db.VarChar(5)
-  logoUrl         String?
+  logoUrl         String?   @db.Text
+  primaryColor    String?   // hex e.g. "#FF5733"
+  secondaryColor  String?   // hex e.g. "#33FF57"
   waiverPriority  Int       @default(0)
   faabBalance     Int       @default(100)
   wins            Int       @default(0)
