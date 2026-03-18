@@ -1,0 +1,94 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dingers
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dingers_dev}
+      POSTGRES_DB: fantasy_hr
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dingers -d fantasy_hr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Next.js App ───────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      target: app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://dingers:${POSTGRES_PASSWORD:-dingers_dev}@postgres:5432/fantasy_hr
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SESSION_COOKIE_NAME: fantasy_session
+      STATS_PROVIDER: mlb
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Workers ───────────────────────────────────────────────────────────────
+  workers:
+    build:
+      context: .
+      target: workers
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://dingers:${POSTGRES_PASSWORD:-dingers_dev}@postgres:5432/fantasy_hr
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── DB Migrations (run-once on startup) ───────────────────────────────────
+  migrate:
+    build:
+      context: .
+      target: builder
+    command: sh -c "npx prisma migrate deploy && npx tsx prisma/seed.ts"
+    environment:
+      DATABASE_URL: postgresql://dingers:${POSTGRES_PASSWORD:-dingers_dev}@postgres:5432/fantasy_hr
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:

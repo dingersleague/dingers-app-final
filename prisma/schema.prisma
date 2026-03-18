@@ -1,0 +1,390 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  role          UserRole  @default(OWNER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  team          Team?
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum UserRole {
+  COMMISSIONER
+  OWNER
+}
+
+// ─── League ──────────────────────────────────────────────────────────────────
+
+model League {
+  id              String        @id @default(cuid())
+  name            String
+  season          Int
+  status          LeagueStatus  @default(SETUP)
+  currentWeek     Int           @default(0)
+  waiverType      WaiverType    @default(PRIORITY)
+  lineupLockDay   String        @default("Tuesday")   // Day of week lineups lock
+  lineupLockHour  Int           @default(1)            // Hour (UTC) lineup locks
+  playoffWeekStart Int          @default(22)
+  maxTeams        Int           @default(12)
+  benchSpots      Int           @default(4)
+  faabBudget      Int           @default(100)          // if FAAB
+  faabAllowZeroBid Boolean       @default(false)         // if FAAB: allow $0 bids
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  teams           Team[]
+  weeks           LeagueWeek[]
+  matchups        Matchup[]
+  transactions    Transaction[]
+  draftSettings   DraftSettings?
+
+  @@map("leagues")
+}
+
+enum LeagueStatus {
+  SETUP
+  PREDRAFT
+  DRAFT
+  REGULAR_SEASON
+  PLAYOFFS
+  OFFSEASON
+}
+
+enum WaiverType {
+  PRIORITY
+  FAAB
+  FREE_AGENCY
+}
+
+model LeagueWeek {
+  id          String     @id @default(cuid())
+  leagueId    String
+  weekNumber  Int
+  startDate   DateTime
+  endDate     DateTime
+  isComplete  Boolean    @default(false)
+  isPlayoff   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+
+  league      League     @relation(fields: [leagueId], references: [id])
+  matchups    Matchup[]
+
+  @@unique([leagueId, weekNumber])
+  @@map("league_weeks")
+}
+
+// ─── Teams ───────────────────────────────────────────────────────────────────
+
+model Team {
+  id              String    @id @default(cuid())
+  leagueId        String
+  userId          String    @unique
+  name            String
+  abbreviation    String    @db.VarChar(5)
+  logoUrl         String?
+  waiverPriority  Int       @default(0)
+  faabBalance     Int       @default(100)
+  wins            Int       @default(0)
+  losses          Int       @default(0)
+  ties            Int       @default(0)
+  pointsFor       Float     @default(0)
+  pointsAgainst   Float     @default(0)
+  draftPosition   Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  league          League    @relation(fields: [leagueId], references: [id])
+  user            User      @relation(fields: [userId], references: [id])
+  rosterSlots     RosterSlot[]
+  homeMatchups    Matchup[] @relation("HomeTeam")
+  awayMatchups    Matchup[] @relation("AwayTeam")
+  transactions    Transaction[]
+  draftPicks      DraftPick[]
+
+  @@unique([leagueId, name])
+  @@map("teams")
+}
+
+// ─── Players ─────────────────────────────────────────────────────────────────
+
+model Player {
+  id                String    @id @default(cuid())
+  mlbId             Int       @unique
+  fullName          String
+  firstName         String
+  lastName          String
+  positions         String[]  // ["C", "1B"], etc.
+  mlbTeamId         Int?
+  mlbTeamAbbr       String?
+  mlbTeamName       String?
+  status            PlayerStatus @default(ACTIVE)
+  bats              String?
+  throws            String?
+  birthDate         DateTime?
+  imageUrl          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  rosterSlots       RosterSlot[]
+  seasonStats       PlayerSeasonStats[]
+  gameStats         PlayerGameStats[]
+  transactions      Transaction[]
+  draftPicks        DraftPick[]
+
+  @@map("players")
+}
+
+enum PlayerStatus {
+  ACTIVE
+  INJURED_10_DAY
+  INJURED_60_DAY
+  SUSPENDED
+  MINORS
+  INACTIVE
+}
+
+model PlayerSeasonStats {
+  id          String   @id @default(cuid())
+  playerId    String
+  season      Int
+  homeRuns    Int      @default(0)
+  gamesPlayed Int      @default(0)
+  atBats      Int      @default(0)
+  hits        Int      @default(0)
+  lastSynced  DateTime @default(now())
+
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, season])
+  @@map("player_season_stats")
+}
+
+model PlayerGameStats {
+  id          String   @id @default(cuid())
+  playerId    String
+  mlbGameId   Int
+  gameDate    DateTime
+  homeRuns    Int      @default(0)
+  atBats      Int      @default(0)
+  hits        Int      @default(0)
+  synced      Boolean  @default(false)
+
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, mlbGameId])
+  @@map("player_game_stats")
+}
+
+// ─── Roster ──────────────────────────────────────────────────────────────────
+
+model RosterSlot {
+  id          String      @id @default(cuid())
+  teamId      String
+  playerId    String
+  slotType    RosterSlotType
+  position    String?     // The slot label: "C", "1B", "OF", "UTIL", "BN"
+  acquiredAt  DateTime    @default(now())
+  acquiredVia AcquisitionType @default(DRAFT)
+
+  team        Team        @relation(fields: [teamId], references: [id])
+  player      Player      @relation(fields: [playerId], references: [id])
+  lineupSlots LineupSlot[]
+
+  @@unique([teamId, playerId])
+  @@map("roster_slots")
+}
+
+enum RosterSlotType {
+  STARTER
+  BENCH
+}
+
+enum AcquisitionType {
+  DRAFT
+  WAIVER
+  FREE_AGENT
+  TRADE
+}
+
+// Lineup is set per matchup week. A lineup snapshot is stored when locked.
+model LineupSlot {
+  id            String   @id @default(cuid())
+  rosterSlotId  String
+  matchupId     String
+  position      String   // "C", "1B", "2B", "SS", "3B", "OF", "UTIL", "BN"
+  isStarter     Boolean  @default(true)
+  locked        Boolean  @default(false)
+  lockedAt      DateTime?
+
+  rosterSlot    RosterSlot @relation(fields: [rosterSlotId], references: [id])
+  matchup       Matchup    @relation(fields: [matchupId], references: [id])
+
+  @@unique([matchupId, rosterSlotId])
+  @@map("lineup_slots")
+}
+
+// ─── Matchups ────────────────────────────────────────────────────────────────
+
+model Matchup {
+  id            String        @id @default(cuid())
+  leagueId      String
+  weekId        String
+  weekNumber    Int
+  homeTeamId    String
+  awayTeamId    String
+  homeScore     Float         @default(0)
+  awayScore     Float         @default(0)
+  homeHR        Int           @default(0)
+  awayHR        Int           @default(0)
+  winner        String?       // teamId or "TIE"
+  status        MatchupStatus @default(SCHEDULED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  league        League        @relation(fields: [leagueId], references: [id])
+  week          LeagueWeek    @relation(fields: [weekId], references: [id])
+  homeTeam      Team          @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam      Team          @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  lineupSlots   LineupSlot[]
+
+  @@map("matchups")
+}
+
+enum MatchupStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETE
+}
+
+// ─── Transactions ────────────────────────────────────────────────────────────
+
+model Transaction {
+  id              String          @id @default(cuid())
+  leagueId        String
+  teamId          String
+  type            TransactionType
+  playerId        String
+  relatedPlayerId String?         // for trades: the other player
+  relatedTeamId   String?         // for trades
+  status          TransactionStatus @default(PENDING)
+  faabBid         Int?
+  waiverPriority  Int?
+  processedAt     DateTime?
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  league          League          @relation(fields: [leagueId], references: [id])
+  team            Team            @relation(fields: [teamId], references: [id])
+  player          Player          @relation(fields: [playerId], references: [id])
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  ADD
+  DROP
+  TRADE_ADD
+  TRADE_DROP
+  WAIVER_ADD
+  WAIVER_DROP
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+// ─── Draft ───────────────────────────────────────────────────────────────────
+
+model DraftSettings {
+  id            String     @id @default(cuid())
+  leagueId      String     @unique
+  type          DraftType  @default(SNAKE)
+  status        DraftStatus @default(PENDING)
+  timerSeconds  Int        @default(90)
+  scheduledAt   DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  currentPick   Int        @default(1)
+  currentRound  Int        @default(1)
+
+  league        League     @relation(fields: [leagueId], references: [id])
+  picks         DraftPick[]
+
+  @@map("draft_settings")
+}
+
+enum DraftType {
+  SNAKE
+  AUCTION
+}
+
+enum DraftStatus {
+  PENDING
+  ACTIVE
+  COMPLETE
+  PAUSED
+}
+
+model DraftPick {
+  id              String   @id @default(cuid())
+  draftSettingsId String
+  teamId          String
+  playerId        String?
+  round           Int
+  pickNumber      Int      // overall pick number
+  pickInRound     Int
+  nominatedAt     DateTime?
+  pickedAt        DateTime?
+  isAutoPick      Boolean  @default(false)
+
+  draftSettings   DraftSettings @relation(fields: [draftSettingsId], references: [id])
+  team            Team          @relation(fields: [teamId], references: [id])
+  player          Player?       @relation(fields: [playerId], references: [id])
+
+  @@unique([draftSettingsId, pickNumber])
+  @@map("draft_picks")
+}
+
+// ─── Sync Audit ──────────────────────────────────────────────────────────────
+
+model SyncLog {
+  id          String   @id @default(cuid())
+  type        String   // "stats", "roster", "schedule"
+  status      String   // "success", "error"
+  details     Json?
+  duration    Int?     // ms
+  createdAt   DateTime @default(now())
+
+  @@map("sync_logs")
+}

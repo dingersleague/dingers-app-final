@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/stat-sync",
+      "schedule": "*/15 13-4 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-rollover",
+      "schedule": "59 3 * * 2"
+    },
+    {
+      "path": "/api/cron/waiver-process",
+      "schedule": "0 7 * * 2"
+    },
+    {
+      "path": "/api/cron/player-sync",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}

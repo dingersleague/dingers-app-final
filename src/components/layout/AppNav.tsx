@@ -1,0 +1,161 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+import {
+  Trophy, Users, Calendar, TrendingUp, Search,
+  Shuffle, ArrowLeftRight, Settings, LogOut, Menu, X, Zap, Home
+} from 'lucide-react'
+import { SessionUser } from '@/types'
+
+interface NavProps {
+  user: SessionUser
+}
+
+const navItems = [
+  { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/matchup', label: 'Matchup', icon: Zap },
+  { href: '/standings', label: 'Standings', icon: Trophy },
+  { href: '/roster', label: 'My Team', icon: Users },
+  { href: '/players/search', label: 'Players', icon: Search },
+  { href: '/schedule', label: 'Schedule', icon: Calendar },
+  { href: '/transactions', label: 'Transactions', icon: Shuffle },
+  { href: '/trades', label: 'Trades', icon: ArrowLeftRight },
+]
+
+export default function AppNav({ user }: NavProps) {
+  const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <nav className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-56 bg-surface-1 border-r border-surface-border z-40">
+        {/* Logo */}
+        <div className="px-4 pt-6 pb-4 border-b border-surface-border">
+          <Link href="/dashboard" className="flex items-center gap-2 group">
+            <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center glow-brand">
+              <span className="font-display font-black text-sm text-surface-0">HR</span>
+            </div>
+            <div>
+              <div className="font-display font-black text-xl text-text-primary tracking-tight leading-none">DINGERS</div>
+              <div className="text-xs text-text-muted font-mono tracking-wider">HR LEAGUE</div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Nav links */}
+        <div className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
+          {navItems.map(item => {
+            const active = pathname.startsWith(item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                  active
+                    ? 'bg-brand/10 text-brand shadow-brand-sm'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-3'
+                }`}
+              >
+                <item.icon size={16} className={active ? 'text-brand' : ''} />
+                {item.label}
+              </Link>
+            )
+          })}
+
+          {user.role === 'COMMISSIONER' && (
+            <>
+              <div className="mt-4 mb-2 px-3 text-xs text-text-muted uppercase tracking-widest">Commissioner</div>
+              <Link
+                href="/admin"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  pathname.startsWith('/admin')
+                    ? 'bg-accent-amber/10 text-accent-amber'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-3'
+                }`}
+              >
+                <Settings size={16} />
+                Admin Panel
+              </Link>
+            </>
+          )}
+        </div>
+
+        {/* User info */}
+        <div className="px-3 py-4 border-t border-surface-border">
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="w-8 h-8 rounded-full bg-brand/20 border border-brand/30 flex items-center justify-center">
+              <span className="font-display font-bold text-sm text-brand">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-text-primary truncate">{user.name}</div>
+              <div className="text-xs text-text-muted capitalize">{user.role.toLowerCase()}</div>
+            </div>
+          </div>
+          <form action="/api/auth/logout" method="POST">
+            <button
+              type="submit"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-muted hover:text-accent-red hover:bg-red-500/10 transition-all mt-1"
+            >
+              <LogOut size={16} />
+              Sign out
+            </button>
+          </form>
+        </div>
+      </nav>
+
+      {/* Mobile top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-surface-1 border-b border-surface-border">
+        <div className="flex items-center justify-between px-4 h-14">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center">
+              <span className="font-display font-black text-xs text-surface-0">HR</span>
+            </div>
+            <span className="font-display font-black text-lg text-text-primary tracking-tight">DINGERS</span>
+          </Link>
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 text-text-secondary hover:text-text-primary"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+
+        {mobileOpen && (
+          <div className="bg-surface-1 border-t border-surface-border px-4 py-4 flex flex-col gap-1">
+            {navItems.map(item => {
+              const active = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
+                    active ? 'bg-brand/10 text-brand' : 'text-text-secondary'
+                  }`}
+                >
+                  <item.icon size={16} />
+                  {item.label}
+                </Link>
+              )
+            })}
+            {user.role === 'COMMISSIONER' && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-accent-amber"
+              >
+                <Settings size={16} />
+                Admin Panel
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}

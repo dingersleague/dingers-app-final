@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand: #00dc52;
+    --color-brand-dim: rgba(0, 220, 82, 0.15);
+    --color-surface-0: #0a0f1a;
+    --color-surface-1: #0f1623;
+    --color-surface-2: #141d2d;
+    --color-surface-3: #1a2638;
+    --color-surface-4: #212f44;
+    --color-surface-border: #1e2d42;
+    --color-text-primary: #f0f4ff;
+    --color-text-secondary: #8ba3c7;
+    --color-text-muted: #4a6080;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-surface-0);
+    color: var(--color-text-primary);
+    /* System font stacks — override with Google Fonts via next/font/local if desired */
+    --font-display: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+    --font-stat: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-surface-1);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-4);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+  }
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply bg-surface-2 border border-surface-border rounded-2xl shadow-card;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:shadow-card-hover hover:border-surface-4 hover:-translate-y-0.5;
+  }
+
+  /* Stat display */
+  .stat-number {
+    @apply font-display font-bold tracking-tight;
+  }
+  .stat-label {
+    @apply text-xs font-body text-text-muted uppercase tracking-widest;
+  }
+
+  /* Brand button */
+  .btn-brand {
+    @apply bg-brand text-text-inverse font-body font-semibold px-4 py-2 rounded-xl
+           hover:bg-brand-600 transition-colors duration-150 text-sm
+           focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-surface-0;
+  }
+  .btn-secondary {
+    @apply bg-surface-3 text-text-primary font-body font-medium px-4 py-2 rounded-xl
+           border border-surface-border hover:bg-surface-4 hover:border-surface-5
+           transition-colors duration-150 text-sm
+           focus:outline-none focus:ring-2 focus:ring-surface-4 focus:ring-offset-2 focus:ring-offset-surface-0;
+  }
+  .btn-ghost {
+    @apply text-text-secondary font-body font-medium px-4 py-2 rounded-xl
+           hover:bg-surface-2 hover:text-text-primary
+           transition-colors duration-150 text-sm;
+  }
+  .btn-danger {
+    @apply bg-accent-red text-white font-body font-semibold px-4 py-2 rounded-xl
+           hover:bg-red-600 transition-colors duration-150 text-sm;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full bg-surface-1 border border-surface-border text-text-primary
+           placeholder:text-text-muted rounded-xl px-3 py-2 text-sm
+           focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand
+           transition-colors duration-150;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-brand {
+    @apply badge bg-brand/15 text-brand;
+  }
+  .badge-secondary {
+    @apply badge bg-surface-3 text-text-secondary border border-surface-border;
+  }
+  .badge-red {
+    @apply badge bg-red-500/15 text-red-400;
+  }
+  .badge-amber {
+    @apply badge bg-amber-500/15 text-amber-400;
+  }
+
+  /* Table */
+  .table-header {
+    @apply text-xs text-text-muted uppercase tracking-widest font-medium;
+  }
+  .table-row {
+    @apply border-t border-surface-border/50 hover:bg-surface-3/50 transition-colors;
+  }
+
+  /* HR Score pill */
+  .hr-score {
+    @apply font-display font-black text-brand tracking-tight;
+  }
+}
+
+@layer utilities {
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(30,45,66,0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,45,66,0.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .glow-brand {
+    box-shadow: 0 0 20px rgba(0, 220, 82, 0.25), 0 0 60px rgba(0, 220, 82, 0.1);
+  }
+
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #00dc52 0%, #40ff84 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
