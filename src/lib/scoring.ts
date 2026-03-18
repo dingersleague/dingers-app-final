@@ -270,6 +270,7 @@ export async function finalizeWeek(leagueId: string, weekNumber: number): Promis
   if (nextWeekRecord) {
     if (nextWeekRecord.isPlayoff && !finalizedWeek.isPlayoff) {
       await generatePlayoffBracket(leagueId)
+      await initializeWeekLineups(leagueId, nextWeekRecord.weekNumber)
       log('info', 'playoff_bracket_generated', { leagueId, weekNumber })
     } else if (nextWeekRecord.isPlayoff && finalizedWeek.isPlayoff) {
       await finalizePlayoffWeek(leagueId, weekNumber)
@@ -527,6 +528,12 @@ export function validateLineup(
 export async function generatePlayoffBracket(leagueId: string): Promise<void> {
   const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } })
 
+  // Idempotency: if already in PLAYOFFS, bracket was already generated
+  if (league.status === 'PLAYOFFS') {
+    log('info', 'playoff_bracket_already_generated', { leagueId })
+    return
+  }
+
   // Get playoff weeks (already created by generateSeasonSchedule, no matchups yet)
   const playoffWeeks = await prisma.leagueWeek.findMany({
     where: { leagueId, isPlayoff: true },
@@ -552,6 +559,16 @@ export async function generatePlayoffBracket(leagueId: string): Promise<void> {
 
   // Week 1: 3 semifinal matchups
   const week1 = playoffWeeks[0]
+
+  // Guard against duplicate matchups from concurrent calls
+  const existingMatchups = await prisma.matchup.count({
+    where: { leagueId, weekNumber: week1.weekNumber },
+  })
+  if (existingMatchups > 0) {
+    log('info', 'playoff_bracket_matchups_exist', { leagueId, week: week1.weekNumber })
+    return
+  }
+
   await prisma.matchup.createMany({
     data: [
       { leagueId, weekId: week1.id, weekNumber: week1.weekNumber, homeTeamId: s1.id, awayTeamId: s6.id, status: 'SCHEDULED' },
@@ -604,36 +621,44 @@ export async function finalizePlayoffWeek(leagueId: string, weekNumber: number):
     m.homeScore >= m.awayScore ? m.awayTeam : m.homeTeam
 
   if (weekNumber === week1Num && playoffWeeks[1]) {
-    // After semis: top 2 winners advance to championship, loser bracket for 3rd place
-    const winners = matchups.map(getWinner)
-    const losers = matchups.map(getLoser)
     const week2 = playoffWeeks[1]
 
-    if (winners.length >= 2) {
-      await prisma.matchup.createMany({
-        data: [
-          // Championship semifinal
-          { leagueId, weekId: week2.id, weekNumber: week2.weekNumber, homeTeamId: winners[0].id, awayTeamId: winners[1].id, status: 'SCHEDULED' },
-          // 3rd place consolation
-          ...(losers.length >= 2 ? [{ leagueId, weekId: week2.id, weekNumber: week2.weekNumber, homeTeamId: losers[0].id, awayTeamId: losers[1].id, status: 'SCHEDULED' as const }] : []),
-          ...(winners[2] ? [{ leagueId, weekId: week2.id, weekNumber: week2.weekNumber, homeTeamId: winners[2].id, awayTeamId: losers[0].id, status: 'SCHEDULED' as const }] : []),
-        ],
-      })
+    // Guard against duplicate matchups from concurrent calls
+    const existing = await prisma.matchup.count({ where: { leagueId, weekNumber: week2.weekNumber } })
+    if (existing === 0) {
+      const winners = matchups.map(getWinner)
+      const losers = matchups.map(getLoser)
+
+      if (winners.length >= 2) {
+        await prisma.matchup.createMany({
+          data: [
+            // Championship semifinal
+            { leagueId, weekId: week2.id, weekNumber: week2.weekNumber, homeTeamId: winners[0].id, awayTeamId: winners[1].id, status: 'SCHEDULED' },
+            // 3rd place consolation
+            ...(losers.length >= 2 ? [{ leagueId, weekId: week2.id, weekNumber: week2.weekNumber, homeTeamId: losers[0].id, awayTeamId: losers[1].id, status: 'SCHEDULED' as const }] : []),
+            ...(winners[2] ? [{ leagueId, weekId: week2.id, weekNumber: week2.weekNumber, homeTeamId: winners[2].id, awayTeamId: losers[0].id, status: 'SCHEDULED' as const }] : []),
+          ],
+        })
+      }
     }
   }
 
   if (weekNumber === week2Num && playoffWeeks[2]) {
-    // Championship week: winners of week 2 play for the title
-    const winners = matchups.map(getWinner)
     const week3 = playoffWeeks[2]
 
-    if (winners.length >= 2) {
-      await prisma.matchup.create({
-        data: {
-          leagueId, weekId: week3.id, weekNumber: week3.weekNumber,
-          homeTeamId: winners[0].id, awayTeamId: winners[1].id, status: 'SCHEDULED',
-        },
-      })
+    // Guard against duplicate matchups from concurrent calls
+    const existing = await prisma.matchup.count({ where: { leagueId, weekNumber: week3.weekNumber } })
+    if (existing === 0) {
+      const winners = matchups.map(getWinner)
+
+      if (winners.length >= 2) {
+        await prisma.matchup.create({
+          data: {
+            leagueId, weekId: week3.id, weekNumber: week3.weekNumber,
+            homeTeamId: winners[0].id, awayTeamId: winners[1].id, status: 'SCHEDULED',
+          },
+        })
+      }
     }
   }
 

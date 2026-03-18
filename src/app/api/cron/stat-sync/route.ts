@@ -83,7 +83,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Update live matchup scores (parallel across leagues)
-    const activeLeagues = await prisma.league.findMany({ where: { status: 'REGULAR_SEASON' } })
+    const activeLeagues = await prisma.league.findMany({
+      where: { status: { in: ['REGULAR_SEASON', 'PLAYOFFS'] } },
+    })
     await Promise.all(
       activeLeagues.map((league) => updateMatchupScores(league.id, league.currentWeek))
     )
