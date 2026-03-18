@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { RefreshCw, Play, Calendar, Users, Settings, CheckCircle, XCircle } from 'lucide-react'
+import { RefreshCw, Play, Pause, Calendar, Users, Settings, CheckCircle, XCircle, Edit3, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface AdminClientProps {
@@ -24,6 +24,12 @@ export default function AdminClient({ league, syncLogs }: AdminClientProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const [seasonStartDate, setSeasonStartDate] = useState('2025-04-01')
   const [timerSeconds, setTimerSeconds] = useState(90)
+
+  const [modifyPickNumber, setModifyPickNumber] = useState('')
+  const [modifyPlayerId, setModifyPlayerId] = useState('')
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
 
   // FAAB settings state — initialised from league prop
   const [waiverType, setWaiverType] = useState<string>(league?.waiverType ?? 'PRIORITY')
@@ -89,6 +95,21 @@ export default function AdminClient({ league, syncLogs }: AdminClientProps) {
     }
     setLoading(null)
   }
+
+  async function searchPlayers(query: string) {
+    if (query.length < 2) { setSearchResults([]); return }
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/players/search?q=${encodeURIComponent(query)}&limit=10`)
+      const data = await res.json()
+      if (data.success) setSearchResults(data.data?.players ?? data.data ?? [])
+    } catch { /* ignore */ }
+    setSearching(false)
+  }
+
+  const draftStatus = league?.draftSettings?.status
+  const isDraftActive = draftStatus === 'ACTIVE'
+  const isDraftPaused = draftStatus === 'PAUSED'
 
   const STATUS_FLOW = ['SETUP', 'PREDRAFT', 'DRAFT', 'REGULAR_SEASON', 'PLAYOFFS', 'OFFSEASON']
   const currentStatusIndex = STATUS_FLOW.indexOf(league?.status ?? 'SETUP')
@@ -180,42 +201,144 @@ export default function AdminClient({ league, syncLogs }: AdminClientProps) {
           <div className="flex items-center gap-2 mb-4">
             <Play size={16} className="text-brand" />
             <h3 className="font-display font-bold text-lg">Draft</h3>
+            {draftStatus && (
+              <span className={`badge text-xs ${
+                isDraftActive ? 'badge-brand' : isDraftPaused ? 'badge-amber' : 'badge-secondary'
+              }`}>{draftStatus}</span>
+            )}
           </div>
           <div className="space-y-3">
-            <div>
-              <label className="text-xs text-text-muted block mb-1">Pick Timer (seconds)</label>
-              <input
-                type="number"
-                value={timerSeconds}
-                onChange={e => setTimerSeconds(Number(e.target.value))}
-                min={30}
-                max={300}
-                className="input"
-              />
-            </div>
-            <button
-              onClick={() => {
-                const draftOrder = (league?.teams ?? []).map((t: any) => t.id)
-                callAdmin('setup_draft', { draftOrder, timerSeconds })
-              }}
-              disabled={!!loading || (league?.teams?.length ?? 0) < 2}
-              className="btn-secondary w-full flex items-center justify-center gap-2"
-            >
-              {loading === 'setup_draft'
-                ? <RefreshCw size={14} className="animate-spin" />
-                : <Settings size={14} />}
-              Configure Snake Draft
-            </button>
-            <button
-              onClick={() => callAdmin('start_draft')}
-              disabled={!!loading || !league?.draftSettings}
-              className="btn-brand w-full flex items-center justify-center gap-2"
-            >
-              {loading === 'start_draft'
-                ? <RefreshCw size={14} className="animate-spin" />
-                : <Play size={14} />}
-              Start Draft
-            </button>
+            {/* Setup controls — only before draft starts */}
+            {(!draftStatus || draftStatus === 'PENDING') && (
+              <>
+                <div>
+                  <label className="text-xs text-text-muted block mb-1">Pick Timer (seconds)</label>
+                  <input
+                    type="number"
+                    value={timerSeconds}
+                    onChange={e => setTimerSeconds(Number(e.target.value))}
+                    min={5}
+                    max={300}
+                    className="input"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const draftOrder = (league?.teams ?? []).map((t: any) => t.id)
+                    callAdmin('setup_draft', { draftOrder, timerSeconds })
+                  }}
+                  disabled={!!loading || (league?.teams?.length ?? 0) < 2}
+                  className="btn-secondary w-full flex items-center justify-center gap-2"
+                >
+                  {loading === 'setup_draft'
+                    ? <RefreshCw size={14} className="animate-spin" />
+                    : <Settings size={14} />}
+                  Configure Snake Draft
+                </button>
+              </>
+            )}
+
+            {/* Start / Resume */}
+            {(draftStatus === 'PENDING' || draftStatus === 'PAUSED') && (
+              <button
+                onClick={() => callAdmin(draftStatus === 'PAUSED' ? 'resume_draft' : 'start_draft')}
+                disabled={!!loading || !league?.draftSettings}
+                className="btn-brand w-full flex items-center justify-center gap-2"
+              >
+                {(loading === 'start_draft' || loading === 'resume_draft')
+                  ? <RefreshCw size={14} className="animate-spin" />
+                  : <Play size={14} />}
+                {draftStatus === 'PAUSED' ? 'Resume Draft' : 'Start Draft'}
+              </button>
+            )}
+
+            {/* Pause */}
+            {isDraftActive && (
+              <button
+                onClick={() => callAdmin('pause_draft')}
+                disabled={!!loading}
+                className="btn-secondary w-full flex items-center justify-center gap-2 border-accent-amber/30 text-accent-amber hover:bg-accent-amber/10"
+              >
+                {loading === 'pause_draft'
+                  ? <RefreshCw size={14} className="animate-spin" />
+                  : <Pause size={14} />}
+                Pause Draft
+              </button>
+            )}
+
+            {/* Modify Pick — available during ACTIVE or PAUSED */}
+            {(isDraftActive || isDraftPaused) && (
+              <div className="pt-3 border-t border-surface-border space-y-3">
+                <div className="flex items-center gap-2">
+                  <Edit3 size={14} className="text-accent-amber" />
+                  <span className="text-xs text-text-muted uppercase tracking-wider">Modify Pick</span>
+                </div>
+                <div>
+                  <label className="text-xs text-text-muted block mb-1">Pick Number</label>
+                  <input
+                    type="number"
+                    value={modifyPickNumber}
+                    onChange={e => setModifyPickNumber(e.target.value)}
+                    placeholder="e.g. 5"
+                    min={1}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-text-muted block mb-1">New Player</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={playerSearch}
+                      onChange={e => { setPlayerSearch(e.target.value); searchPlayers(e.target.value) }}
+                      placeholder="Search player name..."
+                      className="input flex-1"
+                    />
+                  </div>
+                  {searchResults.length > 0 && (
+                    <div className="mt-1 bg-surface-3 rounded-lg border border-surface-border max-h-40 overflow-y-auto">
+                      {searchResults.map((p: any) => (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setModifyPlayerId(p.id)
+                            setPlayerSearch(p.fullName)
+                            setSearchResults([])
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-4 flex items-center justify-between ${
+                            modifyPlayerId === p.id ? 'bg-brand/10 text-brand' : 'text-text-primary'
+                          }`}
+                        >
+                          <span>{p.fullName} <span className="text-text-muted text-xs">{p.positions?.join('/') ?? ''}</span></span>
+                          <span className="text-xs text-text-muted">{p.mlbTeamAbbr}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    if (!modifyPickNumber || !modifyPlayerId) {
+                      toast.error('Enter pick number and select a player')
+                      return
+                    }
+                    callAdmin('modify_pick', {
+                      pickNumber: Number(modifyPickNumber),
+                      newPlayerId: modifyPlayerId,
+                    })
+                    setModifyPickNumber('')
+                    setModifyPlayerId('')
+                    setPlayerSearch('')
+                  }}
+                  disabled={!!loading || !modifyPickNumber || !modifyPlayerId}
+                  className="btn-secondary w-full flex items-center justify-center gap-2"
+                >
+                  {loading === 'modify_pick'
+                    ? <RefreshCw size={14} className="animate-spin" />
+                    : <Edit3 size={14} />}
+                  Apply Correction
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

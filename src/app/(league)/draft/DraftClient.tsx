@@ -181,7 +181,8 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
     )
   }
 
-  const isMyTurn = state.currentTeamId === myTeamId
+  const isPaused = state.status === 'PAUSED'
+  const isMyTurn = !isPaused && state.currentTeamId === myTeamId
   const totalRounds = Math.ceil(state.totalPicks / 12)
 
   // Filter available players
@@ -195,6 +196,17 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Paused Banner */}
+      {isPaused && (
+        <div className="card overflow-hidden border-accent-amber/40">
+          <div className="p-4 bg-accent-amber/10 flex items-center gap-3">
+            <span className="w-3 h-3 rounded-full bg-accent-amber animate-pulse" />
+            <span className="font-display font-bold text-accent-amber text-lg">Draft Paused</span>
+            <span className="text-text-muted text-sm ml-2">The commissioner has paused the draft. Timer will restart when resumed.</span>
+          </div>
+        </div>
+      )}
+
       {/* On The Clock Banner */}
       <div className={`card overflow-hidden ${isMyTurn ? 'border-brand/50 shadow-brand-sm' : ''}`}>
         <div className={`p-5 ${isMyTurn ? 'bg-brand/10' : 'bg-hero-gradient'}`}>
