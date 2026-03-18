@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, authError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isRosterLocked } from '@/lib/roster-lock'
+import { isRosterLocked, isFreeAgencyWindowOpen } from '@/lib/roster-lock'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +24,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: false,
         error: 'Roster moves are locked. Rosters unlock after Tuesday rollover.',
+      }, { status: 423 })
+    }
+
+    // All adds go through waivers unless it's the free agency window (Monday 1AM-noon)
+    if (!isFreeAgencyWindowOpen()) {
+      return NextResponse.json({
+        success: false,
+        error: 'All player adds must go through waivers. Submit a waiver claim instead. Free agent pickups are available Monday 1AM-noon UTC.',
       }, { status: 423 })
     }
 

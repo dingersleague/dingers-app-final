@@ -61,11 +61,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/trades - propose a trade
+// POST /api/trades - propose a trade (supports multiple players)
 const TradeSchema = z.object({
-  offerPlayerId: z.string().cuid(),
-  receivePlayerId: z.string().cuid(),
+  offerPlayerIds: z.array(z.string().cuid()).min(1).max(5),
+  receivePlayerIds: z.array(z.string().cuid()).min(1).max(5),
   targetTeamId: z.string().cuid(),
+  // Legacy single-player support
+  offerPlayerId: z.string().cuid().optional(),
+  receivePlayerId: z.string().cuid().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -81,67 +84,68 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 })
     }
 
-    const { offerPlayerId, receivePlayerId, targetTeamId } = parsed.data
+    const data = parsed.data
+    const offerPlayerIds = data.offerPlayerIds ?? (data.offerPlayerId ? [data.offerPlayerId] : [])
+    const receivePlayerIds = data.receivePlayerIds ?? (data.receivePlayerId ? [data.receivePlayerId] : [])
+    const { targetTeamId } = data
+
+    if (offerPlayerIds.length === 0 || receivePlayerIds.length === 0) {
+      return NextResponse.json({ success: false, error: 'Select at least one player from each side' }, { status: 400 })
+    }
 
     if (targetTeamId === user.teamId) {
       return NextResponse.json({ success: false, error: 'Cannot trade with yourself' }, { status: 400 })
     }
 
-    // Verify ownership at proposal time (informational — re-verified at accept time inside tx)
-    const mySlot = await prisma.rosterSlot.findFirst({
-      where: { playerId: offerPlayerId, teamId: user.teamId },
-      include: { player: { select: { fullName: true } } },
-    })
-    if (!mySlot) {
-      return NextResponse.json({ success: false, error: 'You do not own the offered player' }, { status: 400 })
+    // Verify ownership
+    for (const pid of offerPlayerIds) {
+      const slot = await prisma.rosterSlot.findFirst({ where: { playerId: pid, teamId: user.teamId } })
+      if (!slot) return NextResponse.json({ success: false, error: 'You do not own one of the offered players' }, { status: 400 })
     }
-
-    const theirSlot = await prisma.rosterSlot.findFirst({
-      where: { playerId: receivePlayerId, teamId: targetTeamId },
-      include: { player: { select: { fullName: true } } },
-    })
-    if (!theirSlot) {
-      return NextResponse.json({ success: false, error: 'Target team does not own that player' }, { status: 400 })
+    for (const pid of receivePlayerIds) {
+      const slot = await prisma.rosterSlot.findFirst({ where: { playerId: pid, teamId: targetTeamId } })
+      if (!slot) return NextResponse.json({ success: false, error: 'Target team does not own one of the requested players' }, { status: 400 })
     }
 
     const tradeId = `trade:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-    await prisma.transaction.createMany({
-      data: [
-        {
-          leagueId: user.leagueId,
-          teamId: user.teamId,
-          type: 'TRADE_ADD',
-          playerId: receivePlayerId,
-          relatedPlayerId: offerPlayerId,
-          relatedTeamId: targetTeamId,
-          status: 'PENDING',
-          notes: tradeId,
-        },
-        {
-          leagueId: user.leagueId,
-          teamId: targetTeamId,
-          type: 'TRADE_DROP',
-          playerId: receivePlayerId,
-          relatedPlayerId: offerPlayerId,
-          relatedTeamId: user.teamId,
-          status: 'PENDING',
-          notes: tradeId,
-        },
-      ],
-    })
+    // Store the full player lists as JSON in the notes field alongside the tradeId
+    const tradeData = JSON.stringify({ offerPlayerIds, receivePlayerIds })
 
-    log('info', 'trade_proposed', {
-      tradeId,
-      proposerTeamId: user.teamId,
-      targetTeamId,
-      offerPlayerId,
-      receivePlayerId,
-    })
+    const txRecords: any[] = []
+    // For each player the proposer gives, create TRADE_ADD on target + TRADE_DROP on proposer
+    for (const pid of offerPlayerIds) {
+      txRecords.push({
+        leagueId: user.leagueId, teamId: user.teamId, type: 'TRADE_DROP' as const,
+        playerId: pid, relatedTeamId: targetTeamId, status: 'PENDING' as const, notes: tradeId,
+      })
+      txRecords.push({
+        leagueId: user.leagueId, teamId: targetTeamId, type: 'TRADE_ADD' as const,
+        playerId: pid, relatedTeamId: user.teamId, status: 'PENDING' as const, notes: tradeId,
+      })
+    }
+    // For each player the proposer receives
+    for (const pid of receivePlayerIds) {
+      txRecords.push({
+        leagueId: user.leagueId, teamId: targetTeamId, type: 'TRADE_DROP' as const,
+        playerId: pid, relatedTeamId: user.teamId, status: 'PENDING' as const, notes: tradeId,
+      })
+      txRecords.push({
+        leagueId: user.leagueId, teamId: user.teamId, type: 'TRADE_ADD' as const,
+        playerId: pid, relatedTeamId: targetTeamId, status: 'PENDING' as const, notes: tradeId,
+      })
+    }
+
+    await prisma.transaction.createMany({ data: txRecords })
+
+    log('info', 'trade_proposed', { tradeId, proposerTeamId: user.teamId, targetTeamId, offerPlayerIds, receivePlayerIds })
+
+    const offerNames = await prisma.player.findMany({ where: { id: { in: offerPlayerIds } }, select: { fullName: true } })
+    const receiveNames = await prisma.player.findMany({ where: { id: { in: receivePlayerIds } }, select: { fullName: true } })
 
     return NextResponse.json({
       success: true,
-      message: `Trade proposed: ${mySlot.player.fullName} for ${theirSlot.player.fullName}`,
+      message: `Trade proposed: ${offerNames.map(p => p.fullName).join(', ')} for ${receiveNames.map(p => p.fullName).join(', ')}`,
       data: { tradeId },
     })
 
@@ -202,86 +206,58 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Malformed trade record' }, { status: 500 })
     }
 
-    // The players involved:
-    //   proposerTx.playerId      = player proposer WANTS (currently on receiver's roster)
-    //   proposerTx.relatedPlayerId = player proposer IS GIVING (currently on proposer's roster)
-    const wantedPlayerId = proposerTx.playerId        // receiver currently owns this
-    const givenPlayerId  = proposerTx.relatedPlayerId // proposer currently owns this
-    const proposerTeamId = proposerTx.teamId
-    const receiverTeamId = myTx.teamId
+    // Gather all trade transactions to find players involved
+    const allTradeTxs = tradeTxs
+    const proposerTeamId = allTradeTxs.find(t => t.type === 'TRADE_ADD' && t.teamId !== user.teamId)?.teamId
+      ?? allTradeTxs.find(t => t.type === 'TRADE_DROP' && t.teamId !== user.teamId)?.teamId
+    const receiverTeamId = user.teamId
+
+    if (!proposerTeamId) {
+      return NextResponse.json({ success: false, error: 'Cannot determine trade partner' }, { status: 500 })
+    }
+
+    // Players proposer sends (receiver gets) = TRADE_ADD where teamId = receiver
+    const receiverGets = allTradeTxs.filter(t => t.type === 'TRADE_ADD' && t.teamId === receiverTeamId).map(t => t.playerId)
+    // Players receiver sends (proposer gets) = TRADE_ADD where teamId = proposer
+    const proposerGets = allTradeTxs.filter(t => t.type === 'TRADE_ADD' && t.teamId === proposerTeamId).map(t => t.playerId)
 
     try {
       await prisma.$transaction(async tx => {
-        // ── Re-validate status inside tx (idempotency guard) ──────────────
-        const freshTxs = await tx.transaction.findMany({
-          where: { notes: tradeId },
-          select: { status: true },
-        })
-        if (freshTxs.some(t => t.status !== 'PENDING')) {
-          throw new Error('TRADE_ALREADY_PROCESSED')
+        const freshTxs = await tx.transaction.findMany({ where: { notes: tradeId }, select: { status: true } })
+        if (freshTxs.some(t => t.status !== 'PENDING')) throw new Error('TRADE_ALREADY_PROCESSED')
+
+        // Validate all players still owned
+        for (const pid of receiverGets) {
+          const slot = await tx.rosterSlot.findFirst({ where: { playerId: pid, teamId: proposerTeamId } })
+          if (!slot) throw new Error('PROPOSER_LOST_PLAYER')
+        }
+        for (const pid of proposerGets) {
+          const slot = await tx.rosterSlot.findFirst({ where: { playerId: pid, teamId: receiverTeamId } })
+          if (!slot) throw new Error('RECEIVER_LOST_PLAYER')
         }
 
-        // ── Re-validate ownership inside tx (TOCTOU fix) ──────────────────
-        // Both checks use SELECT FOR UPDATE semantics via Prisma's serializable
-        // isolation to prevent concurrent trades from swapping the same player.
-        const receiverOwnsWanted = await tx.rosterSlot.findFirst({
-          where: { playerId: wantedPlayerId, teamId: receiverTeamId },
-        })
-        if (!receiverOwnsWanted) {
-          throw new Error('RECEIVER_LOST_PLAYER')
+        // Execute swaps
+        for (const pid of receiverGets) {
+          await tx.rosterSlot.updateMany({ where: { playerId: pid, teamId: proposerTeamId }, data: { teamId: receiverTeamId, acquiredVia: 'TRADE' } })
+        }
+        for (const pid of proposerGets) {
+          await tx.rosterSlot.updateMany({ where: { playerId: pid, teamId: receiverTeamId }, data: { teamId: proposerTeamId, acquiredVia: 'TRADE' } })
         }
 
-        const proposerOwnsGiven = await tx.rosterSlot.findFirst({
-          where: { playerId: givenPlayerId, teamId: proposerTeamId },
-        })
-        if (!proposerOwnsGiven) {
-          throw new Error('PROPOSER_LOST_PLAYER')
-        }
-
-        // ── Execute swap ───────────────────────────────────────────────────
-        // Proposer gets the wanted player
-        await tx.rosterSlot.updateMany({
-          where: { playerId: wantedPlayerId, teamId: receiverTeamId },
-          data: { teamId: proposerTeamId, acquiredVia: 'TRADE' },
-        })
-
-        // Receiver gets the given player
-        await tx.rosterSlot.updateMany({
-          where: { playerId: givenPlayerId, teamId: proposerTeamId },
-          data: { teamId: receiverTeamId, acquiredVia: 'TRADE' },
-        })
-
-        // Mark both transaction records processed
-        await tx.transaction.updateMany({
-          where: { notes: tradeId },
-          data: { status: 'PROCESSED', processedAt: new Date() },
-        })
+        await tx.transaction.updateMany({ where: { notes: tradeId }, data: { status: 'PROCESSED', processedAt: new Date() } })
       }, { isolationLevel: 'Serializable' })
     } catch (txErr: any) {
       if (txErr.message === 'TRADE_ALREADY_PROCESSED') {
         return NextResponse.json({ success: false, error: 'Trade already processed' }, { status: 409 })
       }
-      if (txErr.message === 'RECEIVER_LOST_PLAYER') {
-        // Reject the trade since the offered player is no longer available
-        await prisma.transaction.updateMany({
-          where: { notes: tradeId },
-          data: { status: 'REJECTED', processedAt: new Date() },
-        })
-        log('warn', 'trade_accept_invalidated', { tradeId, reason: 'receiver_lost_player' })
-        return NextResponse.json({ success: false, error: 'Trade invalidated: player no longer on your roster' }, { status: 409 })
-      }
-      if (txErr.message === 'PROPOSER_LOST_PLAYER') {
-        await prisma.transaction.updateMany({
-          where: { notes: tradeId },
-          data: { status: 'REJECTED', processedAt: new Date() },
-        })
-        log('warn', 'trade_accept_invalidated', { tradeId, reason: 'proposer_lost_player' })
-        return NextResponse.json({ success: false, error: 'Trade invalidated: offered player no longer available' }, { status: 409 })
+      if (txErr.message.includes('LOST_PLAYER')) {
+        await prisma.transaction.updateMany({ where: { notes: tradeId }, data: { status: 'REJECTED', processedAt: new Date() } })
+        return NextResponse.json({ success: false, error: 'Trade invalidated: a player is no longer available' }, { status: 409 })
       }
       throw txErr
     }
 
-    log('info', 'trade_accepted', { tradeId, proposerTeamId, receiverTeamId, wantedPlayerId, givenPlayerId })
+    log('info', 'trade_accepted', { tradeId, proposerTeamId, receiverTeamId, receiverGets, proposerGets })
     return NextResponse.json({ success: true, message: 'Trade accepted and executed' })
 
   } catch (err: any) {

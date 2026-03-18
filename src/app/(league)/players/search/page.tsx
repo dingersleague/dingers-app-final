@@ -54,11 +54,22 @@ export default function PlayerSearchPage() {
   const [waiverClaimPlayer, setWaiverClaimPlayer] = useState<Player | null>(null)
   const [rosterDetail, setRosterDetail] = useState<Array<{ playerId: string; playerName: string; position: string }>>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [freeAgencyOpen, setFreeAgencyOpen] = useState(false)
 
   const debouncedQuery = useDebounce(query, 300)
 
   useEffect(() => { searchPlayers() }, [debouncedQuery, position, availability])
-  useEffect(() => { fetchMyRosterInfo(); fetchRosterDetail() }, [])
+  useEffect(() => { fetchMyRosterInfo(); fetchRosterDetail(); fetchWindowStatus() }, [])
+
+  async function fetchWindowStatus() {
+    try {
+      const res = await fetch('/api/waivers')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) setFreeAgencyOpen(data.data.freeAgencyOpen ?? false)
+      }
+    } catch {}
+  }
 
   async function fetchMyRosterInfo() {
     const res = await fetch('/api/roster/info')
@@ -331,16 +342,7 @@ export default function PlayerSearchPage() {
                         Drop
                       </button>
                     ) : !player.isOnRoster ? (
-                      player.isOnWaivers ? (
-                        <button
-                          onClick={() => setWaiverClaimPlayer(player)}
-                          disabled={isPending}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/10 text-accent-amber hover:bg-amber-500/20 transition-all text-xs font-semibold disabled:opacity-50"
-                        >
-                          <Clock size={12} />
-                          Claim
-                        </button>
-                      ) : (
+                      freeAgencyOpen ? (
                         <button
                           onClick={() => handleAdd(player)}
                           disabled={isPending}
@@ -348,6 +350,15 @@ export default function PlayerSearchPage() {
                         >
                           {isPending ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
                           Add
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setWaiverClaimPlayer(player)}
+                          disabled={isPending}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/10 text-accent-amber hover:bg-amber-500/20 transition-all text-xs font-semibold disabled:opacity-50"
+                        >
+                          <Clock size={12} />
+                          Claim
                         </button>
                       )
                     ) : (

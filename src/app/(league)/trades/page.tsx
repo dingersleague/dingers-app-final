@@ -35,8 +35,8 @@ export default function TradesPage() {
   const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
   const [theirRoster, setTheirRoster] = useState<RosterPlayer[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
-  const [myPick, setMyPick] = useState<string | null>(null)
-  const [theirPick, setTheirPick] = useState<string | null>(null)
+  const [myPicks, setMyPicks] = useState<Set<string>>(new Set())
+  const [theirPicks, setTheirPicks] = useState<Set<string>>(new Set())
   const [trades, setTrades] = useState<Trade[]>([])
   const [myTeamId, setMyTeamId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -91,13 +91,20 @@ export default function TradesPage() {
     } catch { toast.error('Failed to load roster') }
   }
 
+  function toggleMyPick(id: string) {
+    setMyPicks(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+  function toggleTheirPick(id: string) {
+    setTheirPicks(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
   async function proposeTrade() {
-    if (!myPick || !theirPick || !selectedTeam) return
+    if (myPicks.size === 0 || theirPicks.size === 0 || !selectedTeam) return
     setSubmitting(true)
     try {
       const res = await fetch('/api/trades', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ offerPlayerId: myPick, receivePlayerId: theirPick, targetTeamId: selectedTeam.id }),
+        body: JSON.stringify({ offerPlayerIds: [...myPicks], receivePlayerIds: [...theirPicks], targetTeamId: selectedTeam.id }),
       })
       const data = await res.json()
       if (data.success) {
@@ -122,11 +129,11 @@ export default function TradesPage() {
   }
 
   function resetProposal() {
-    setMyPick(null); setTheirPick(null); setSelectedTeam(null); setStep(1); setTheirRoster([])
+    setMyPicks(new Set()); setTheirPicks(new Set()); setSelectedTeam(null); setStep(1); setTheirRoster([])
   }
 
-  const myPickPlayer = myRoster.find(p => p.playerId === myPick)
-  const theirPickPlayer = theirRoster.find(p => p.playerId === theirPick)
+  const myPickPlayers = myRoster.filter(p => myPicks.has(p.playerId))
+  const theirPickPlayers = theirRoster.filter(p => theirPicks.has(p.playerId))
 
   if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="animate-spin text-brand" size={24} /></div>
 
@@ -208,39 +215,29 @@ export default function TradesPage() {
           <div>
             {/* Trade preview bar */}
             <div className="px-4 py-3 bg-surface-1/50 border-b border-surface-border">
-              <div className="flex items-center gap-3">
-                <div className={`flex-1 text-center p-2 rounded-lg ${myPick ? 'bg-red-500/10 border border-red-500/20' : 'bg-surface-3'}`}>
-                  {myPickPlayer ? (
-                    <div>
-                      <div className="text-xs text-accent-red font-semibold">You send</div>
-                      <div className="font-display font-bold text-sm mt-0.5">{myPickPlayer.playerName}</div>
-                      <div className="text-xs text-text-muted">{myPickPlayer.seasonHR} HR</div>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-text-muted py-2">Select your player</div>
-                  )}
+              <div className="flex items-start gap-3">
+                <div className={`flex-1 p-2 rounded-lg ${myPicks.size > 0 ? 'bg-red-500/10 border border-red-500/20' : 'bg-surface-3'}`}>
+                  <div className="text-xs text-accent-red font-semibold mb-1">You send ({myPicks.size})</div>
+                  {myPickPlayers.length > 0 ? myPickPlayers.map(p => (
+                    <div key={p.playerId} className="text-xs font-medium text-text-primary">{p.playerName} <span className="text-text-muted">{p.seasonHR} HR</span></div>
+                  )) : <div className="text-xs text-text-muted">Tap players below</div>}
                 </div>
-                <ArrowLeftRight size={18} className="text-text-muted flex-shrink-0" />
-                <div className={`flex-1 text-center p-2 rounded-lg ${theirPick ? 'bg-brand/10 border border-brand/20' : 'bg-surface-3'}`}>
-                  {theirPickPlayer ? (
-                    <div>
-                      <div className="text-xs text-brand font-semibold">You get</div>
-                      <div className="font-display font-bold text-sm mt-0.5">{theirPickPlayer.playerName}</div>
-                      <div className="text-xs text-text-muted">{theirPickPlayer.seasonHR} HR</div>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-text-muted py-2">Select their player</div>
-                  )}
+                <ArrowLeftRight size={18} className="text-text-muted flex-shrink-0 mt-3" />
+                <div className={`flex-1 p-2 rounded-lg ${theirPicks.size > 0 ? 'bg-brand/10 border border-brand/20' : 'bg-surface-3'}`}>
+                  <div className="text-xs text-brand font-semibold mb-1">You get ({theirPicks.size})</div>
+                  {theirPickPlayers.length > 0 ? theirPickPlayers.map(p => (
+                    <div key={p.playerId} className="text-xs font-medium text-text-primary">{p.playerName} <span className="text-text-muted">{p.seasonHR} HR</span></div>
+                  )) : <div className="text-xs text-text-muted">Tap players below</div>}
                 </div>
               </div>
-              {myPick && theirPick && (
+              {myPicks.size > 0 && theirPicks.size > 0 && (
                 <button
                   onClick={proposeTrade}
                   disabled={submitting}
                   className="btn-brand w-full mt-3 flex items-center justify-center gap-2 py-2.5"
                 >
                   {submitting ? <RefreshCw size={14} className="animate-spin" /> : <ArrowLeftRight size={14} />}
-                  {submitting ? 'Sending...' : 'Send Trade Offer'}
+                  {submitting ? 'Sending...' : `Send Trade Offer (${myPicks.size} for ${theirPicks.size})`}
                 </button>
               )}
             </div>
@@ -256,9 +253,9 @@ export default function TradesPage() {
                   {myRoster.map(p => (
                     <button
                       key={p.playerId}
-                      onClick={() => setMyPick(myPick === p.playerId ? null : p.playerId)}
+                      onClick={() => toggleMyPick(p.playerId)}
                       className={`w-full flex items-center gap-2 px-3 py-2.5 border-b border-surface-border/20 text-left transition-colors ${
-                        myPick === p.playerId ? 'bg-red-500/10' : 'hover:bg-surface-3/30'
+                        myPicks.has(p.playerId) ? 'bg-red-500/10' : 'hover:bg-surface-3/30'
                       }`}
                     >
                       <span className="font-mono text-[10px] text-text-muted w-6">{p.position}</span>
@@ -281,9 +278,9 @@ export default function TradesPage() {
                   {theirRoster.map(p => (
                     <button
                       key={p.playerId}
-                      onClick={() => setTheirPick(theirPick === p.playerId ? null : p.playerId)}
+                      onClick={() => toggleTheirPick(p.playerId)}
                       className={`w-full flex items-center gap-2 px-3 py-2.5 border-b border-surface-border/20 text-left transition-colors ${
-                        theirPick === p.playerId ? 'bg-brand/10' : 'hover:bg-surface-3/30'
+                        theirPicks.has(p.playerId) ? 'bg-brand/10' : 'hover:bg-surface-3/30'
                       }`}
                     >
                       <span className="font-mono text-[10px] text-text-muted w-6">{p.position}</span>

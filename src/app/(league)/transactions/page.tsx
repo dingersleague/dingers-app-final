@@ -49,7 +49,8 @@ export default async function TransactionsPage() {
     },
   })
 
-  const pending = transactions.filter(t => t.status === 'PENDING')
+  // Only show YOUR pending waivers (bids are private until processed)
+  const myPending = transactions.filter(t => t.status === 'PENDING' && t.teamId === myTeamId)
   const processed = transactions.filter(t => t.status !== 'PENDING')
 
   const myTeamId = userWithTeam.team.id
@@ -103,14 +104,14 @@ export default async function TransactionsPage() {
         </div>
       )}
 
-      {pending.length > 0 && (
+      {myPending.length > 0 && (
         <div className="card overflow-hidden">
           <div className="px-5 py-3 border-b border-surface-border bg-accent-amber/5">
-            <h2 className="font-display font-bold text-lg text-accent-amber">Pending Waivers</h2>
+            <h2 className="font-display font-bold text-lg text-accent-amber">Your Pending Claims</h2>
           </div>
           <div className="divide-y divide-surface-border/50">
-            {pending.map(tx => (
-              <TransactionRow key={tx.id} tx={tx} myTeamId={userWithTeam.team!.id} />
+            {myPending.map(tx => (
+              <TransactionRow key={tx.id} tx={tx} myTeamId={myTeamId} showBid={true} />
             ))}
           </div>
         </div>
@@ -134,7 +135,7 @@ export default async function TransactionsPage() {
   )
 }
 
-function TransactionRow({ tx, myTeamId }: { tx: any; myTeamId: string }) {
+function TransactionRow({ tx, myTeamId, showBid = false }: { tx: any; myTeamId: string; showBid?: boolean }) {
   const isAdd = tx.type.includes('ADD')
   const isMe = tx.teamId === myTeamId
 
@@ -155,7 +156,7 @@ function TransactionRow({ tx, myTeamId }: { tx: any; myTeamId: string }) {
         </div>
         <div className="text-xs text-text-muted">
           {tx.player.positions.join('/')} · {tx.player.mlbTeamAbbr ?? 'FA'}
-          {tx.faabBid != null && <span className="ml-2">· ${tx.faabBid} FAAB</span>}
+          {tx.faabBid != null && (showBid || tx.status === 'PROCESSED') && <span className="ml-2">· ${tx.faabBid} FAAB</span>}
         </div>
       </div>
       <div className="text-right flex-shrink-0">
