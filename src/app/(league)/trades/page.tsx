@@ -2,23 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeftRight, Check, X, RefreshCw, ChevronDown } from 'lucide-react'
+import { ArrowLeftRight, Check, X, RefreshCw, ChevronRight, Search } from 'lucide-react'
 import Link from 'next/link'
+import PlayerHeadshot from '@/components/PlayerHeadshot'
 
 interface RosterPlayer {
   playerId: string
   playerName: string
+  mlbId: number
   positions: string[]
   mlbTeamAbbr: string | null
   seasonHR: number
   position: string
 }
 
-interface Team {
-  id: string
-  name: string
-  abbreviation: string
-}
+interface Team { id: string; name: string; abbreviation: string }
 
 interface Trade {
   trade_id: string
@@ -26,6 +24,8 @@ interface Trade {
   receive_team_name: string
   offer_player_name: string
   receive_player_name: string
+  offer_player_hr: number
+  receive_player_hr: number
   status: string
   created_at: string
 }
@@ -40,35 +40,25 @@ export default function TradesPage() {
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [step, setStep] = useState<1 | 2 | 3>(1) // 1=pick team, 2=pick players, 3=confirm
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  useEffect(() => {
-    if (selectedTeam) fetchTheirRoster(selectedTeam.id)
-  }, [selectedTeam])
+  useEffect(() => { fetchData() }, [])
+  useEffect(() => { if (selectedTeam) { fetchTheirRoster(selectedTeam.id); setStep(2) } }, [selectedTeam])
 
   async function fetchData() {
     setLoading(true)
     try {
       const [rosterRes, tradesRes, teamsRes] = await Promise.all([
-        fetch('/api/roster'),
-        fetch('/api/trades'),
-        fetch('/api/standings'),
+        fetch('/api/roster'), fetch('/api/trades'), fetch('/api/standings'),
       ])
       const [rosterData, tradesData, teamsData] = await Promise.all([
         rosterRes.json(), tradesRes.json(), teamsRes.json(),
       ])
-
       if (rosterData.success) {
         setMyRoster(rosterData.data.roster.map((r: any) => ({
-          playerId: r.player.id,
-          playerName: r.player.fullName,
-          positions: r.player.positions,
-          mlbTeamAbbr: r.player.mlbTeamAbbr,
-          seasonHR: r.player.seasonHR,
-          position: r.position,
+          playerId: r.player.id, playerName: r.player.fullName, mlbId: r.player.mlbId ?? 0,
+          positions: r.player.positions, mlbTeamAbbr: r.player.mlbTeamAbbr,
+          seasonHR: r.player.seasonHR, position: r.position,
         })))
       }
       if (tradesData.success) setTrades(tradesData.data)
@@ -83,204 +73,253 @@ export default function TradesPage() {
       const data = await res.json()
       if (data.success) {
         setTheirRoster(data.data.roster.map((r: any) => ({
-          playerId: r.player.id,
-          playerName: r.player.fullName,
-          positions: r.player.positions,
-          mlbTeamAbbr: r.player.mlbTeamAbbr,
-          seasonHR: r.player.seasonHR,
-          position: r.position,
+          playerId: r.player.id, playerName: r.player.fullName, mlbId: r.player.mlbId ?? 0,
+          positions: r.player.positions, mlbTeamAbbr: r.player.mlbTeamAbbr,
+          seasonHR: r.player.seasonHR, position: r.position,
         })))
       }
-    } catch { toast.error('Failed to load their roster') }
+    } catch { toast.error('Failed to load roster') }
   }
 
   async function proposeTrade() {
-    if (!myPick || !theirPick || !selectedTeam) {
-      toast.error('Select a player from each roster')
-      return
-    }
+    if (!myPick || !theirPick || !selectedTeam) return
     setSubmitting(true)
     try {
       const res = await fetch('/api/trades', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          offerPlayerId: myPick,
-          receivePlayerId: theirPick,
-          targetTeamId: selectedTeam.id,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offerPlayerId: myPick, receivePlayerId: theirPick, targetTeamId: selectedTeam.id }),
       })
       const data = await res.json()
       if (data.success) {
-        toast.success(data.message)
-        setMyPick(null)
-        setTheirPick(null)
+        toast.success('Trade offer sent!')
+        resetProposal()
         fetchData()
-      } else {
-        toast.error(data.error)
-      }
-    } catch { toast.error('Proposal failed') }
+      } else { toast.error(data.error) }
+    } catch { toast.error('Failed') }
     setSubmitting(false)
   }
 
   async function respondToTrade(tradeId: string, action: 'accept' | 'reject') {
     try {
       const res = await fetch('/api/trades', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tradeId, action }),
       })
       const data = await res.json()
-      if (data.success) {
-        toast.success(data.message)
-        fetchData()
-      } else {
-        toast.error(data.error)
-      }
+      if (data.success) { toast.success(data.message); fetchData() }
+      else { toast.error(data.error) }
     } catch { toast.error('Failed') }
   }
 
-  const PlayerList = ({ players, selected, onSelect, label }: {
-    players: RosterPlayer[]
-    selected: string | null
-    onSelect: (id: string) => void
-    label: string
-  }) => (
-    <div className="card overflow-hidden">
-      <div className="px-4 py-3 border-b border-surface-border bg-surface-1/50">
-        <div className="font-display font-bold text-lg">{label}</div>
-      </div>
-      <div className="divide-y divide-surface-border/50 max-h-80 overflow-y-auto">
-        {players.map(p => (
-          <div
-            key={p.playerId}
-            onClick={() => onSelect(p.playerId)}
-            className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
-              selected === p.playerId ? 'bg-brand/10 border-l-2 border-brand' : 'hover:bg-surface-3/50'
-            }`}
-          >
-            <span className="badge-secondary font-mono text-xs w-10 text-center">{p.position}</span>
-            <div className="flex-1 min-w-0">
-              <Link href={`/players/${p.playerId}`} className="text-sm font-medium truncate hover:underline block">{p.playerName}</Link>
-              <div className="text-xs text-text-muted">{p.positions.join('/')} · {p.mlbTeamAbbr ?? 'FA'}</div>
-            </div>
-            <span className={`font-display font-black text-lg ${p.seasonHR > 20 ? 'text-brand' : 'text-text-primary'}`}>
-              {p.seasonHR}
-            </span>
-          </div>
-        ))}
-        {players.length === 0 && (
-          <div className="px-4 py-8 text-center text-text-muted text-sm">No players</div>
-        )}
-      </div>
-    </div>
-  )
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-64"><RefreshCw className="animate-spin text-brand" size={24} /></div>
+  function resetProposal() {
+    setMyPick(null); setTheirPick(null); setSelectedTeam(null); setStep(1); setTheirRoster([])
   }
 
+  const myPickPlayer = myRoster.find(p => p.playerId === myPick)
+  const theirPickPlayer = theirRoster.find(p => p.playerId === theirPick)
+
+  if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="animate-spin text-brand" size={24} /></div>
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
       <div>
-        <h1 className="font-display font-black text-4xl tracking-tight">Trades</h1>
-        <p className="text-text-muted text-sm mt-1">Propose and respond to player trades</p>
+        <h1 className="font-display font-black text-3xl sm:text-4xl tracking-tight">Trades</h1>
+        <p className="text-text-muted text-sm mt-1">Propose and manage trades</p>
       </div>
 
-      {/* Pending trades requiring my action */}
-      {trades.filter(t => t.status === 'PENDING' && t.receive_team_name).length > 0 && (
+      {/* Pending trades */}
+      {trades.filter(t => t.status === 'PENDING').length > 0 && (
+        <div className="card overflow-hidden border-accent-amber/30">
+          <div className="px-4 py-3 border-b border-surface-border bg-accent-amber/5">
+            <h2 className="font-display font-bold text-lg text-accent-amber">Incoming Offers</h2>
+          </div>
+          {trades.filter(t => t.status === 'PENDING').map(trade => (
+            <div key={trade.trade_id} className="p-4 border-b border-surface-border/30">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-sm text-text-muted">{trade.offer_team_name} offers:</span>
+              </div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-1 card p-3 bg-brand/5 border-brand/20 text-center">
+                  <div className="text-sm font-semibold text-brand">You get</div>
+                  <div className="font-display font-bold mt-1">{trade.offer_player_name}</div>
+                </div>
+                <ArrowLeftRight size={20} className="text-text-muted flex-shrink-0" />
+                <div className="flex-1 card p-3 bg-red-500/5 border-red-500/20 text-center">
+                  <div className="text-sm font-semibold text-accent-red">You give</div>
+                  <div className="font-display font-bold mt-1">{trade.receive_player_name}</div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => respondToTrade(trade.trade_id, 'accept')} className="btn-brand flex-1 flex items-center justify-center gap-1.5 text-sm py-2">
+                  <Check size={14} /> Accept
+                </button>
+                <button onClick={() => respondToTrade(trade.trade_id, 'reject')} className="btn-secondary flex-1 flex items-center justify-center gap-1.5 text-sm py-2 border-red-500/20 text-accent-red hover:bg-red-500/10">
+                  <X size={14} /> Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Trade Proposal */}
+      <div className="card overflow-hidden">
+        <div className="px-4 py-3 border-b border-surface-border flex items-center justify-between">
+          <h2 className="font-display font-bold text-lg">Propose Trade</h2>
+          {step > 1 && (
+            <button onClick={resetProposal} className="text-xs text-text-muted hover:text-text-primary">Start over</button>
+          )}
+        </div>
+
+        {/* Step 1: Pick team */}
+        {step === 1 && (
+          <div className="p-4">
+            <p className="text-sm text-text-muted mb-3">Who do you want to trade with?</p>
+            <div className="space-y-1">
+              {teams.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTeam(t)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-surface-3/50 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-surface-3 border border-surface-border flex items-center justify-center font-display font-bold text-xs text-text-muted">
+                    {t.abbreviation.slice(0, 2)}
+                  </div>
+                  <span className="flex-1 font-medium text-sm">{t.name}</span>
+                  <ChevronRight size={14} className="text-text-muted" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Pick players from both rosters */}
+        {step === 2 && selectedTeam && (
+          <div>
+            {/* Trade preview bar */}
+            <div className="px-4 py-3 bg-surface-1/50 border-b border-surface-border">
+              <div className="flex items-center gap-3">
+                <div className={`flex-1 text-center p-2 rounded-lg ${myPick ? 'bg-red-500/10 border border-red-500/20' : 'bg-surface-3'}`}>
+                  {myPickPlayer ? (
+                    <div>
+                      <div className="text-xs text-accent-red font-semibold">You send</div>
+                      <div className="font-display font-bold text-sm mt-0.5">{myPickPlayer.playerName}</div>
+                      <div className="text-xs text-text-muted">{myPickPlayer.seasonHR} HR</div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted py-2">Select your player</div>
+                  )}
+                </div>
+                <ArrowLeftRight size={18} className="text-text-muted flex-shrink-0" />
+                <div className={`flex-1 text-center p-2 rounded-lg ${theirPick ? 'bg-brand/10 border border-brand/20' : 'bg-surface-3'}`}>
+                  {theirPickPlayer ? (
+                    <div>
+                      <div className="text-xs text-brand font-semibold">You get</div>
+                      <div className="font-display font-bold text-sm mt-0.5">{theirPickPlayer.playerName}</div>
+                      <div className="text-xs text-text-muted">{theirPickPlayer.seasonHR} HR</div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted py-2">Select their player</div>
+                  )}
+                </div>
+              </div>
+              {myPick && theirPick && (
+                <button
+                  onClick={proposeTrade}
+                  disabled={submitting}
+                  className="btn-brand w-full mt-3 flex items-center justify-center gap-2 py-2.5"
+                >
+                  {submitting ? <RefreshCw size={14} className="animate-spin" /> : <ArrowLeftRight size={14} />}
+                  {submitting ? 'Sending...' : 'Send Trade Offer'}
+                </button>
+              )}
+            </div>
+
+            {/* Side-by-side rosters */}
+            <div className="grid grid-cols-2 divide-x divide-surface-border">
+              {/* My roster */}
+              <div>
+                <div className="px-3 py-2 bg-surface-1/30 border-b border-surface-border">
+                  <span className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Your Roster</span>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {myRoster.map(p => (
+                    <button
+                      key={p.playerId}
+                      onClick={() => setMyPick(myPick === p.playerId ? null : p.playerId)}
+                      className={`w-full flex items-center gap-2 px-3 py-2.5 border-b border-surface-border/20 text-left transition-colors ${
+                        myPick === p.playerId ? 'bg-red-500/10' : 'hover:bg-surface-3/30'
+                      }`}
+                    >
+                      <span className="font-mono text-[10px] text-text-muted w-6">{p.position}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-text-primary truncate">{p.playerName}</div>
+                        <div className="text-[10px] text-text-muted">{p.positions.join('/')}</div>
+                      </div>
+                      <span className={`font-display font-bold text-sm ${p.seasonHR >= 20 ? 'text-brand' : 'text-text-muted'}`}>{p.seasonHR}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Their roster */}
+              <div>
+                <div className="px-3 py-2 bg-surface-1/30 border-b border-surface-border">
+                  <span className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">{selectedTeam.abbreviation}</span>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {theirRoster.map(p => (
+                    <button
+                      key={p.playerId}
+                      onClick={() => setTheirPick(theirPick === p.playerId ? null : p.playerId)}
+                      className={`w-full flex items-center gap-2 px-3 py-2.5 border-b border-surface-border/20 text-left transition-colors ${
+                        theirPick === p.playerId ? 'bg-brand/10' : 'hover:bg-surface-3/30'
+                      }`}
+                    >
+                      <span className="font-mono text-[10px] text-text-muted w-6">{p.position}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-text-primary truncate">{p.playerName}</div>
+                        <div className="text-[10px] text-text-muted">{p.positions.join('/')}</div>
+                      </div>
+                      <span className={`font-display font-bold text-sm ${p.seasonHR >= 20 ? 'text-brand' : 'text-text-muted'}`}>{p.seasonHR}</span>
+                    </button>
+                  ))}
+                  {theirRoster.length === 0 && (
+                    <div className="px-3 py-8 text-center">
+                      <RefreshCw size={14} className="animate-spin mx-auto text-text-muted" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Trade History */}
+      {trades.filter(t => t.status !== 'PENDING').length > 0 && (
         <div className="card overflow-hidden">
-          <div className="px-5 py-3 border-b border-surface-border bg-accent-amber/5">
-            <h2 className="font-display font-bold text-lg text-accent-amber">Pending Trades</h2>
+          <div className="px-4 py-3 border-b border-surface-border">
+            <h2 className="font-display font-bold text-lg">Trade History</h2>
           </div>
           <div className="divide-y divide-surface-border/50">
-            {trades.filter(t => t.status === 'PENDING').map(trade => (
-              <div key={trade.trade_id} className="flex items-center gap-4 px-5 py-4">
-                <div className="flex-1">
-                  <div className="text-sm font-medium">
-                    <span className="text-text-secondary">{trade.offer_team_name}</span>
-                    {' offers '}
-                    <span className="text-brand">{trade.offer_player_name}</span>
-                    {' for '}
-                    <span className="text-accent-red">{trade.receive_player_name}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => respondToTrade(trade.trade_id, 'accept')}
-                    className="btn-brand flex items-center gap-1 text-xs py-1.5"
-                  >
-                    <Check size={12} /> Accept
-                  </button>
-                  <button
-                    onClick={() => respondToTrade(trade.trade_id, 'reject')}
-                    className="btn-danger flex items-center gap-1 text-xs py-1.5"
-                  >
-                    <X size={12} /> Reject
-                  </button>
+            {trades.filter(t => t.status !== 'PENDING').map(t => (
+              <div key={t.trade_id} className="flex items-center gap-3 px-4 py-3">
+                <span className={`w-14 text-center text-xs font-bold px-1.5 py-0.5 rounded ${
+                  t.status === 'PROCESSED' ? 'bg-brand/10 text-brand' : 'bg-red-500/10 text-accent-red'
+                }`}>
+                  {t.status === 'PROCESSED' ? 'Done' : 'Rej.'}
+                </span>
+                <div className="flex-1 text-xs text-text-secondary">
+                  {t.offer_team_name}: <span className="text-text-primary font-medium">{t.offer_player_name}</span>
+                  {' ↔ '}
+                  {t.receive_team_name}: <span className="text-text-primary font-medium">{t.receive_player_name}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* Propose a trade */}
-      <div className="card p-5">
-        <h2 className="font-display font-bold text-xl mb-4">Propose Trade</h2>
-
-        <div className="mb-4">
-          <label className="text-xs text-text-muted block mb-1.5">Trade with</label>
-          <select
-            value={selectedTeam?.id ?? ''}
-            onChange={e => {
-              const t = teams.find(t => t.id === e.target.value)
-              setSelectedTeam(t ?? null)
-              setTheirPick(null)
-            }}
-            className="input max-w-xs"
-          >
-            <option value="">Select team...</option>
-            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <PlayerList
-            players={myRoster}
-            selected={myPick}
-            onSelect={setMyPick}
-            label="You give up"
-          />
-          <PlayerList
-            players={theirRoster}
-            selected={theirPick}
-            onSelect={setTheirPick}
-            label={selectedTeam ? `${selectedTeam.name} gives` : 'Select a team first'}
-          />
-        </div>
-
-        {/* Trade summary */}
-        {myPick && theirPick && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-3 border border-surface-border mb-4">
-            <span className="text-sm text-accent-red font-medium">
-              {myRoster.find(p => p.playerId === myPick)?.playerName}
-            </span>
-            <ArrowLeftRight size={16} className="text-text-muted flex-shrink-0" />
-            <span className="text-sm text-brand font-medium">
-              {theirRoster.find(p => p.playerId === theirPick)?.playerName}
-            </span>
-          </div>
-        )}
-
-        <button
-          onClick={proposeTrade}
-          disabled={!myPick || !theirPick || !selectedTeam || submitting}
-          className="btn-brand disabled:opacity-50"
-        >
-          {submitting ? 'Sending...' : 'Send Trade Offer'}
-        </button>
-      </div>
     </div>
   )
 }

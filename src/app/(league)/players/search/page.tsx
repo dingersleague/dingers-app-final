@@ -367,34 +367,51 @@ export default function PlayerSearchPage() {
         )}
       </div>
 
-      {/* Drop modal (roster full) */}
+      {/* Add/Drop swap modal */}
       {showDropModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowDropModal(null)}>
-          <div className="card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <h3 className="font-display font-bold text-xl mb-1">Roster Full</h3>
-            <p className="text-sm text-text-muted mb-4">
-              Drop a player to add <span className="text-brand font-semibold">{showDropModal.fullName}</span>
-            </p>
-            <div className="space-y-1 max-h-64 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowDropModal(null)}>
+          <div className="card w-full max-w-md sm:mx-4 rounded-b-none sm:rounded-b-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header with the player being added */}
+            <div className="p-4 border-b border-surface-border bg-brand/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-brand/20 border border-brand/40 flex items-center justify-center">
+                  <Plus size={18} className="text-brand" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-display font-bold text-lg text-brand">{showDropModal.fullName}</div>
+                  <div className="text-xs text-text-muted">{showDropModal.positions.join('/')} · {showDropModal.mlbTeamAbbr ?? 'FA'} · {showDropModal.seasonHR} Proj HR</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 py-2 bg-surface-1/50">
+              <span className="text-xs text-text-muted uppercase tracking-wider">Select player to drop</span>
+            </div>
+
+            {/* Roster list */}
+            <div className="overflow-y-auto flex-1">
               {rosterDetail.map(slot => (
                 <button
                   key={slot.playerId}
                   onClick={() => handleAddWithDrop(showDropModal, slot.playerId)}
                   disabled={!!actionPending}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-500/10 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 border-b border-surface-border/30 hover:bg-red-500/5 transition-colors text-left disabled:opacity-50"
                 >
-                  <span className="font-mono text-xs text-text-muted w-8">{slot.position}</span>
-                  <span className="flex-1 text-sm text-text-primary">{slot.playerName}</span>
-                  <Minus size={14} className="text-accent-red" />
+                  <span className="font-mono text-xs text-text-muted w-10 text-center">{slot.position}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-text-primary truncate">{slot.playerName}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Minus size={14} className="text-accent-red" />
+                    <span className="text-xs text-accent-red font-semibold">Drop</span>
+                  </div>
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setShowDropModal(null)}
-              className="mt-4 btn-secondary w-full text-sm"
-            >
-              Cancel
-            </button>
+
+            <div className="p-3 border-t border-surface-border">
+              <button onClick={() => setShowDropModal(null)} className="btn-secondary w-full text-sm">Cancel</button>
+            </div>
           </div>
         </div>
       )}
