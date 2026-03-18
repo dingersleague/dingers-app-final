@@ -71,6 +71,7 @@ async function getMatchupById(matchupId: string) {
         mlbTeamAbbr: slot.rosterSlot.player.mlbTeamAbbr,
         status: slot.rosterSlot.player.status,
         seasonHR: slot.rosterSlot.player.seasonStats[0]?.homeRuns ?? 0,
+        projWeeklyHR: ((slot.rosterSlot.player.seasonStats[0]?.homeRuns ?? 0) / 25),
         weeklyHR: slot.rosterSlot.player.gameStats.reduce((s, g) => s + g.homeRuns, 0),
       },
     }))
@@ -131,6 +132,11 @@ export default async function MatchupDetailPage({ params }: { params: { id: stri
   const homeWinning = matchup.homeScore > matchup.awayScore
   const awayWinning = matchup.awayScore > matchup.homeScore
   const tied = matchup.homeScore === matchup.awayScore
+
+  // Projected weekly HR for each team's starters
+  const homeProjHR = homeStarters.reduce((s, p) => s + (p.player.projWeeklyHR ?? 0), 0)
+  const awayProjHR = awayStarters.reduce((s, p) => s + (p.player.projWeeklyHR ?? 0), 0)
+  const projEdge = homeProjHR > awayProjHR ? 'home' : awayProjHR > homeProjHR ? 'away' : 'even'
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -210,6 +216,45 @@ export default async function MatchupDetailPage({ params }: { params: { id: stri
           </div>
         </div>
       </div>
+
+      {/* Projection Bar */}
+      {(homeProjHR > 0 || awayProjHR > 0) && (
+        <div className="card p-4">
+          <div className="text-xs text-text-muted uppercase tracking-wider text-center mb-3">Projected HR This Week</div>
+          <div className="flex items-center gap-3">
+            <div className="text-right flex-1">
+              <span className={`font-display font-bold text-lg ${projEdge === 'home' ? 'text-brand' : 'text-text-secondary'}`}>
+                {homeProjHR.toFixed(1)}
+              </span>
+            </div>
+            {/* Visual bar */}
+            <div className="flex-1 max-w-xs h-3 rounded-full bg-surface-3 overflow-hidden flex">
+              <div
+                className={`h-full transition-all ${projEdge === 'home' ? 'bg-brand' : 'bg-text-muted/30'}`}
+                style={{ width: `${(homeProjHR / (homeProjHR + awayProjHR || 1)) * 100}%` }}
+              />
+              <div
+                className={`h-full transition-all ${projEdge === 'away' ? 'bg-brand' : 'bg-text-muted/30'}`}
+                style={{ width: `${(awayProjHR / (homeProjHR + awayProjHR || 1)) * 100}%` }}
+              />
+            </div>
+            <div className="text-left flex-1">
+              <span className={`font-display font-bold text-lg ${projEdge === 'away' ? 'text-brand' : 'text-text-secondary'}`}>
+                {awayProjHR.toFixed(1)}
+              </span>
+            </div>
+          </div>
+          <div className="flex justify-between text-xs text-text-muted mt-1">
+            <span>{matchup.homeTeam.abbreviation}</span>
+            {projEdge !== 'even' && (
+              <span className="text-brand font-semibold">
+                {projEdge === 'home' ? matchup.homeTeam.abbreviation : matchup.awayTeam.abbreviation} favored by {Math.abs(homeProjHR - awayProjHR).toFixed(1)}
+              </span>
+            )}
+            <span>{matchup.awayTeam.abbreviation}</span>
+          </div>
+        </div>
+      )}
 
       {/* Side-by-side lineups */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
