@@ -371,6 +371,11 @@ export async function generateSeasonSchedule(
   const teams = await prisma.team.findMany({ where: { leagueId } })
   if (teams.length < 2) throw new Error('Need at least 2 teams')
 
+  // Weeks must start on Tuesday (crons fire on Tuesdays)
+  if (seasonStartDate.getUTCDay() !== 2) {
+    throw new Error('Season start date must be a Tuesday')
+  }
+
   const teamIds = teams.map(t => t.id)
   const n = teamIds.length
   const totalRegularWeeks = 22  // 22-week regular season
@@ -615,10 +620,27 @@ export async function finalizePlayoffWeek(leagueId: string, weekNumber: number):
   const week2Num = playoffWeeks[1]?.weekNumber
   const week3Num = playoffWeeks[2]?.weekNumber
 
-  const getWinner = (m: typeof matchups[0]) =>
-    m.homeScore >= m.awayScore ? m.homeTeam : m.awayTeam
-  const getLoser = (m: typeof matchups[0]) =>
-    m.homeScore >= m.awayScore ? m.awayTeam : m.homeTeam
+  // Playoff tiebreaker: matchup score → season HRs (pointsFor) → regular season wins → random
+  const getWinner = (m: typeof matchups[0]) => {
+    if (m.homeScore !== m.awayScore) {
+      return m.homeScore > m.awayScore ? m.homeTeam : m.awayTeam
+    }
+    // Tiebreaker 1: total season HRs
+    if (m.homeTeam.pointsFor !== m.awayTeam.pointsFor) {
+      return m.homeTeam.pointsFor > m.awayTeam.pointsFor ? m.homeTeam : m.awayTeam
+    }
+    // Tiebreaker 2: regular season wins
+    if (m.homeTeam.wins !== m.awayTeam.wins) {
+      return m.homeTeam.wins > m.awayTeam.wins ? m.homeTeam : m.awayTeam
+    }
+    // Tiebreaker 3: random (seeded by matchup ID for determinism)
+    const hash = m.id.charCodeAt(0) + m.id.charCodeAt(1)
+    return hash % 2 === 0 ? m.homeTeam : m.awayTeam
+  }
+  const getLoser = (m: typeof matchups[0]) => {
+    const winner = getWinner(m)
+    return winner.id === m.homeTeam.id ? m.awayTeam : m.homeTeam
+  }
 
   if (weekNumber === week1Num && playoffWeeks[1]) {
     const week2 = playoffWeeks[1]
