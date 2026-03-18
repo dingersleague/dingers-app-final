@@ -1,7 +1,7 @@
 // Service worker for DINGERS PWA
 // Caches static assets for fast loading. Network-first for API calls.
 
-const CACHE_NAME = 'dingers-v1'
+const CACHE_NAME = 'dingers-v2'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {
