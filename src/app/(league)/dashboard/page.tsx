@@ -66,7 +66,7 @@ async function getDashboardData(userId: string) {
     take: 8,
     include: {
       team: { select: { name: true, abbreviation: true } },
-      player: { select: { fullName: true, positions: true } },
+      player: { select: { id: true, fullName: true, positions: true } },
     },
   })
 
@@ -239,9 +239,9 @@ export default async function DashboardPage() {
                 <span className={`font-display font-bold text-lg w-6 text-center ${
                   i === 0 ? 'text-accent-amber' : 'text-text-muted'
                 }`}>{i + 1}</span>
-                <span className={`flex-1 text-sm font-medium ${t.id === team.id ? 'text-brand' : 'text-text-primary'}`}>
+                <Link href={`/teams/${t.id}`} className={`flex-1 text-sm font-medium hover:underline ${t.id === team.id ? 'text-brand' : 'text-text-primary'}`}>
                   {t.name}
-                </span>
+                </Link>
                 <span className="font-mono text-sm text-text-secondary">{t.wins}–{t.losses}</span>
                 <span className="font-mono text-xs text-text-muted">{t.pointsFor.toFixed(0)} HR</span>
               </div>
@@ -269,7 +269,7 @@ export default async function DashboardPage() {
                   {tx.type.includes('ADD') ? '+' : '−'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-text-primary truncate">{tx.player.fullName}</div>
+                  <Link href={`/players/${tx.player.id}`} className="text-sm font-medium text-text-primary truncate hover:underline block">{tx.player.fullName}</Link>
                   <div className="text-xs text-text-muted">{tx.team.name} · {tx.type.replace('_', ' ').toLowerCase()}</div>
                 </div>
               </div>

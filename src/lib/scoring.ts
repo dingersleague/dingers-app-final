@@ -545,6 +545,9 @@ export async function generatePlayoffBracket(leagueId: string): Promise<void> {
 
   // Top 6 make playoffs
   const seeds = teams.slice(0, 6)
+  if (seeds.length < 6) {
+    throw new Error(`Playoff bracket requires at least 6 teams, got ${seeds.length}`)
+  }
   const [s1, s2, s3, s4, s5, s6] = seeds
 
   // Week 1: 3 semifinal matchups

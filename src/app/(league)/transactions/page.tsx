@@ -1,6 +1,7 @@
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,8 +44,8 @@ export default async function TransactionsPage() {
     orderBy: { createdAt: 'desc' },
     take: 100,
     include: {
-      team: { select: { name: true, abbreviation: true } },
-      player: { select: { fullName: true, positions: true, mlbTeamAbbr: true } },
+      team: { select: { id: true, name: true, abbreviation: true } },
+      player: { select: { id: true, fullName: true, positions: true, mlbTeamAbbr: true } },
     },
   })
 
@@ -79,10 +80,10 @@ export default async function TransactionsPage() {
                   className={`flex items-center gap-4 px-5 py-3 ${isMe ? 'bg-brand/3' : ''}`}
                 >
                   <span className="font-mono text-sm text-text-muted w-5">{i + 1}</span>
-                  <span className={`font-medium text-sm flex-1 ${isMe ? 'text-brand' : 'text-text-primary'}`}>
+                  <Link href={`/teams/${team.id}`} className={`font-medium text-sm flex-1 hover:underline ${isMe ? 'text-brand' : 'text-text-primary'}`}>
                     {team.name}
                     {isMe && <span className="ml-2 text-xs text-text-muted font-normal">(You)</span>}
-                  </span>
+                  </Link>
                   {/* Budget bar */}
                   <div className="flex-1 max-w-32">
                     <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
@@ -146,11 +147,11 @@ function TransactionRow({ tx, myTeamId }: { tx: any; myTeamId: string }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`font-medium text-sm ${isMe ? 'text-brand' : 'text-text-primary'}`}>
+          <Link href={`/teams/${tx.team.id}`} className={`font-medium text-sm hover:underline ${isMe ? 'text-brand' : 'text-text-primary'}`}>
             {tx.team.name}
-          </span>
+          </Link>
           <span className="text-text-muted text-sm">{TX_LABELS[tx.type] ?? tx.type}</span>
-          <span className="font-medium text-sm text-text-primary">{tx.player.fullName}</span>
+          <Link href={`/players/${tx.player.id}`} className="font-medium text-sm text-text-primary hover:underline">{tx.player.fullName}</Link>
         </div>
         <div className="text-xs text-text-muted">
           {tx.player.positions.join('/')} · {tx.player.mlbTeamAbbr ?? 'FA'}

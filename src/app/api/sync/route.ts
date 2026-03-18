@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
           update: {
             homeRuns: agg._sum.homeRuns ?? 0,
             gamesPlayed: agg._count.id,
+            atBats: agg._sum.atBats ?? 0,
+            hits: agg._sum.hits ?? 0,
             lastSynced: new Date(),
           },
         })

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Lock, Unlock, RefreshCw, Save, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 
 const POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN']
 
@@ -247,9 +248,9 @@ export default function RosterPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-text-primary truncate">
+                        <Link href={`/players/${slot.player.player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
                           {slot.player.player.fullName}
-                        </span>
+                        </Link>
                         <span className={`text-xs font-mono font-semibold ${getStatusColor(slot.player.player.status)}`}>
                           {getStatusLabel(slot.player.player.status)}
                         </span>
@@ -299,9 +300,9 @@ export default function RosterPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-text-primary truncate">
+                        <Link href={`/players/${slot.player.player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
                           {slot.player.player.fullName}
-                        </span>
+                        </Link>
                         <span className={`text-xs font-mono font-semibold ${getStatusColor(slot.player.player.status)}`}>
                           {getStatusLabel(slot.player.player.status)}
                         </span>

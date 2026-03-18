@@ -104,7 +104,7 @@ export default async function PlayerPage({ params }: { params: { id: string } })
             <div className="stat-label mb-1">Ownership</div>
             {ownerSlot ? (
               <div className="font-medium text-sm">
-                {ownerSlot.team.name}
+                <Link href={`/teams/${ownerSlot.team.id}`} className="hover:underline">{ownerSlot.team.name}</Link>
                 {ownerSlot.team.id === user.teamId && (
                   <span className="ml-2 badge-brand">Your team</span>
                 )}

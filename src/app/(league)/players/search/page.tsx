@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Minus, AlertCircle, RefreshCw, Clock } from 'lucide-react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { useDebounce } from '@/lib/hooks'
 import WaiverClaimModal from '@/components/players/WaiverClaimModal'
@@ -238,9 +239,9 @@ export default function PlayerSearchPage() {
                   {/* Player info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-text-primary truncate">
+                      <Link href={`/players/${player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
                         {player.fullName}
-                      </span>
+                      </Link>
                       {isOnMyRoster && (
                         <span className="badge-brand text-xs">Yours</span>
                       )}
@@ -267,7 +268,7 @@ export default function PlayerSearchPage() {
                   {/* Owner */}
                   <div className="w-24">
                     {player.ownedByTeamName ? (
-                      <span className="text-xs text-text-muted truncate block">{player.ownedByTeamName}</span>
+                      <Link href={`/teams/${player.ownedByTeamId}`} className="text-xs text-text-muted truncate block hover:text-brand transition-colors">{player.ownedByTeamName}</Link>
                     ) : (
                       <span className="badge-brand text-xs">Free Agent</span>
                     )}

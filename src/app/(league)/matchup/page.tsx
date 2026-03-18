@@ -2,6 +2,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import { Zap, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
@@ -112,10 +113,10 @@ function PlayerRow({ slot, showScore = true }: { slot: any; showScore?: boolean 
   return (
     <div className={`flex items-center gap-3 px-4 py-2.5 table-row ${!slot.isStarter ? 'opacity-60' : ''}`}>
       <span className="w-10 font-mono text-xs text-text-muted font-semibold">{slot.position}</span>
-      <div className="flex-1 min-w-0">
+      <Link href={`/players/${slot.player.id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
         <div className="text-sm font-medium text-text-primary truncate">{slot.player.fullName}</div>
         <div className="text-xs text-text-muted">{slot.player.mlbTeamAbbr ?? 'FA'} · {slot.player.positions.join('/')}</div>
-      </div>
+      </Link>
       {showScore && slot.isStarter && (
         <div className={`font-display font-black text-xl w-8 text-right ${slot.player.weeklyHR > 0 ? 'text-brand' : 'text-text-muted'}`}>
           {slot.player.weeklyHR}
@@ -182,7 +183,7 @@ export default async function MatchupPage() {
               }`}>
                 {myScore.toFixed(0)}
               </div>
-              <div className="mt-2 font-display font-bold text-lg text-text-secondary">{myTeam.name}</div>
+              <Link href={`/teams/${myTeam.id}`} className="mt-2 font-display font-bold text-lg text-text-secondary hover:text-brand transition-colors block">{myTeam.name}</Link>
               <div className="text-xs text-text-muted">{myTeam.abbreviation}</div>
             </div>
 
@@ -203,7 +204,7 @@ export default async function MatchupPage() {
               }`}>
                 {opponentScore.toFixed(0)}
               </div>
-              <div className="mt-2 font-display font-bold text-lg text-text-secondary">{opponentTeam.name}</div>
+              <Link href={`/teams/${opponentTeam.id}`} className="mt-2 font-display font-bold text-lg text-text-secondary hover:text-brand transition-colors block">{opponentTeam.name}</Link>
               <div className="text-xs text-text-muted">{opponentTeam.abbreviation}</div>
             </div>
           </div>
@@ -215,7 +216,7 @@ export default async function MatchupPage() {
         {/* My lineup */}
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-border bg-brand/5">
-            <div className="font-display font-bold text-lg text-brand">{myTeam.name}</div>
+            <Link href={`/teams/${myTeam.id}`} className="font-display font-bold text-lg text-brand hover:underline">{myTeam.name}</Link>
             <div className="text-xs text-text-muted">Starting Lineup</div>
           </div>
           <div>
@@ -237,7 +238,7 @@ export default async function MatchupPage() {
         {/* Opponent lineup */}
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-border bg-surface-3/50">
-            <div className="font-display font-bold text-lg text-text-primary">{opponentTeam.name}</div>
+            <Link href={`/teams/${opponentTeam.id}`} className="font-display font-bold text-lg text-text-primary hover:underline">{opponentTeam.name}</Link>
             <div className="text-xs text-text-muted">Starting Lineup</div>
           </div>
           <div>

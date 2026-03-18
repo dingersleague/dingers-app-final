@@ -1,6 +1,7 @@
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,18 +69,18 @@ export default async function SchedulePage() {
                 <div className="px-4 py-3 bg-brand/3 border-b border-surface-border/50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className={`font-medium text-sm ${myMatchup.homeTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
+                      <Link href={`/teams/${myMatchup.homeTeam.id}`} className={`font-medium text-sm hover:underline ${myMatchup.homeTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
                         {myMatchup.homeTeam.name}
-                      </span>
+                      </Link>
                       <span className="font-display font-bold text-lg text-text-primary">
                         {myMatchup.status === 'SCHEDULED' ? '—' : myMatchup.homeScore}
                       </span>
                     </div>
                     <span className="text-text-muted text-xs font-mono px-3">VS</span>
                     <div className="flex items-center gap-3 flex-row-reverse">
-                      <span className={`font-medium text-sm ${myMatchup.awayTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
+                      <Link href={`/teams/${myMatchup.awayTeam.id}`} className={`font-medium text-sm hover:underline ${myMatchup.awayTeamId === team.id ? 'text-brand' : 'text-text-primary'}`}>
                         {myMatchup.awayTeam.name}
-                      </span>
+                      </Link>
                       <span className="font-display font-bold text-lg text-text-primary">
                         {myMatchup.status === 'SCHEDULED' ? '—' : myMatchup.awayScore}
                       </span>
@@ -105,12 +106,12 @@ export default async function SchedulePage() {
                   .filter(m => !(m.homeTeamId === team.id || m.awayTeamId === team.id))
                   .map(m => (
                   <div key={m.id} className="flex items-center gap-2 px-4 py-2.5 text-sm">
-                    <span className="flex-1 text-text-secondary truncate">{m.homeTeam.abbreviation}</span>
+                    <Link href={`/teams/${m.homeTeam.id}`} className="flex-1 text-text-secondary truncate hover:text-brand transition-colors">{m.homeTeam.abbreviation}</Link>
                     <span className="font-mono text-text-muted text-xs">
                       {m.status === 'SCHEDULED' ? 'vs' :
                        `${m.homeScore}–${m.awayScore}`}
                     </span>
-                    <span className="flex-1 text-right text-text-secondary truncate">{m.awayTeam.abbreviation}</span>
+                    <Link href={`/teams/${m.awayTeam.id}`} className="flex-1 text-right text-text-secondary truncate hover:text-brand transition-colors">{m.awayTeam.abbreviation}</Link>
                   </div>
                 ))}
               </div>

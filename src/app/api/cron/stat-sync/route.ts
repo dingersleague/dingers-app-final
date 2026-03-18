@@ -46,39 +46,47 @@ export async function GET(req: NextRequest) {
       synced++
     }
 
-    // Aggregate season stats
+    // Aggregate season stats in a single groupBy query instead of N+1 loops
     const season = new Date().getFullYear()
-    const players = await prisma.player.findMany({ select: { id: true } })
-    for (const p of players) {
-      const agg = await prisma.playerGameStats.aggregate({
-        where: { playerId: p.id, gameDate: { gte: new Date(`${season}-01-01`) } },
-        _sum: { homeRuns: true, atBats: true, hits: true },
-        _count: { id: true },
-      })
-      if (agg._count.id > 0) {
-        await prisma.playerSeasonStats.upsert({
-          where: { playerId_season: { playerId: p.id, season } },
-          create: {
-            playerId: p.id, season,
-            homeRuns: agg._sum.homeRuns ?? 0,
-            gamesPlayed: agg._count.id,
-            atBats: agg._sum.atBats ?? 0,
-            hits: agg._sum.hits ?? 0,
-          },
-          update: {
-            homeRuns: agg._sum.homeRuns ?? 0,
-            gamesPlayed: agg._count.id,
-            lastSynced: new Date(),
-          },
-        })
-      }
+    const aggregated = await prisma.playerGameStats.groupBy({
+      by: ['playerId'],
+      where: { gameDate: { gte: new Date(`${season}-01-01`) } },
+      _sum: { homeRuns: true, atBats: true, hits: true },
+      _count: { id: true },
+    })
+
+    // Batch upserts in groups of 50 for concurrency control
+    const BATCH_SIZE = 50
+    for (let i = 0; i < aggregated.length; i += BATCH_SIZE) {
+      const batch = aggregated.slice(i, i + BATCH_SIZE)
+      await Promise.all(
+        batch.map((agg) =>
+          prisma.playerSeasonStats.upsert({
+            where: { playerId_season: { playerId: agg.playerId, season } },
+            create: {
+              playerId: agg.playerId, season,
+              homeRuns: agg._sum.homeRuns ?? 0,
+              gamesPlayed: agg._count.id,
+              atBats: agg._sum.atBats ?? 0,
+              hits: agg._sum.hits ?? 0,
+            },
+            update: {
+              homeRuns: agg._sum.homeRuns ?? 0,
+              gamesPlayed: agg._count.id,
+              atBats: agg._sum.atBats ?? 0,
+              hits: agg._sum.hits ?? 0,
+              lastSynced: new Date(),
+            },
+          })
+        )
+      )
     }
 
-    // Update live matchup scores
+    // Update live matchup scores (parallel across leagues)
     const activeLeagues = await prisma.league.findMany({ where: { status: 'REGULAR_SEASON' } })
-    for (const league of activeLeagues) {
-      await updateMatchupScores(league.id, league.currentWeek)
-    }
+    await Promise.all(
+      activeLeagues.map((league) => updateMatchupScores(league.id, league.currentWeek))
+    )
 
     const duration = Date.now() - start
     await prisma.syncLog.create({

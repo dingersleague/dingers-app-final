@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
 
   } catch (err) {
     log('error', 'cron_player_sync_failed', { error: String(err) })
+    await prisma.syncLog.create({
+      data: { type: 'roster', status: 'error', details: { error: String(err) }, duration: Date.now() - start },
+    })
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 })
   }
 }

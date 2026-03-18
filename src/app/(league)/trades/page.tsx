@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeftRight, Check, X, RefreshCw, ChevronDown } from 'lucide-react'
+import Link from 'next/link'
 
 interface RosterPlayer {
   playerId: string
@@ -160,7 +161,7 @@ export default function TradesPage() {
           >
             <span className="badge-secondary font-mono text-xs w-10 text-center">{p.position}</span>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate">{p.playerName}</div>
+              <Link href={`/players/${p.playerId}`} className="text-sm font-medium truncate hover:underline block">{p.playerName}</Link>
               <div className="text-xs text-text-muted">{p.positions.join('/')} · {p.mlbTeamAbbr ?? 'FA'}</div>
             </div>
             <span className={`font-display font-black text-lg ${p.seasonHR > 20 ? 'text-brand' : 'text-text-primary'}`}>
