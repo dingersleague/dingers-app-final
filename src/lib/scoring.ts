@@ -567,7 +567,10 @@ export async function generatePlayoffBracket(leagueId: string): Promise<void> {
 
   // Weeks 2 and 3 matchups are created dynamically after each round completes
   // (we don't know matchups until week 1 resolves). See finalizePlayoffWeek().
-  console.log(`[playoff] Bracket seeded. Week ${week1.weekNumber}: ${s1.name} v ${s6.name}, ${s2.name} v ${s5.name}, ${s3.name} v ${s4.name}`)
+  log('info', 'playoff_bracket_seeded', {
+    leagueId, week: week1.weekNumber,
+    matchups: `${s1.name} v ${s6.name}, ${s2.name} v ${s5.name}, ${s3.name} v ${s4.name}`,
+  })
 }
 
 /**
@@ -640,6 +643,6 @@ export async function finalizePlayoffWeek(leagueId: string, weekNumber: number):
       where: { id: leagueId },
       data: { status: 'OFFSEASON' },
     })
-    console.log(`[playoff] Season complete for league ${leagueId}`)
+    log('info', 'playoff_season_complete', { leagueId })
   }
 }

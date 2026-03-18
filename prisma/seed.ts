@@ -119,7 +119,7 @@ async function main() {
   await prisma.playerGameStats.deleteMany()
   await prisma.player.deleteMany()
   await prisma.team.deleteMany()
-  await prisma.session.deleteMany()
+  await prisma.loginAttempt.deleteMany()
   await prisma.user.deleteMany()
   await prisma.league.deleteMany()
 

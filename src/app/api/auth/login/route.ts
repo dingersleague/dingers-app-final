@@ -3,30 +3,38 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
+import { log } from '@/lib/logger'
 
-export const dynamic = 'force-dynamic' // prevent static build-time evaluation
+export const dynamic = 'force-dynamic'
 
 const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 })
 
-// In-memory rate limiter. For multi-instance deploy, move to Redis with ioredis.
-const loginAttempts = new Map<string, { count: number; resetAt: number }>()
 const MAX_ATTEMPTS = 5
 const WINDOW_MS = 15 * 60 * 1000 // 15 minutes
 
-function checkRateLimit(key: string): { allowed: boolean; retryAfterMs: number } {
-  const now = Date.now()
-  const entry = loginAttempts.get(key)
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + WINDOW_MS })
-    return { allowed: true, retryAfterMs: 0 }
+async function checkRateLimit(key: string): Promise<{ allowed: boolean; retryAfterMs: number }> {
+  const windowStart = new Date(Date.now() - WINDOW_MS)
+
+  const count = await prisma.loginAttempt.count({
+    where: { key, createdAt: { gte: windowStart } },
+  })
+
+  if (count >= MAX_ATTEMPTS) {
+    // Find the oldest attempt in the window to calculate retry-after
+    const oldest = await prisma.loginAttempt.findFirst({
+      where: { key, createdAt: { gte: windowStart } },
+      orderBy: { createdAt: 'asc' },
+    })
+    const retryAfterMs = oldest
+      ? oldest.createdAt.getTime() + WINDOW_MS - Date.now()
+      : WINDOW_MS
+    return { allowed: false, retryAfterMs: Math.max(retryAfterMs, 0) }
   }
-  if (entry.count >= MAX_ATTEMPTS) {
-    return { allowed: false, retryAfterMs: entry.resetAt - now }
-  }
-  entry.count++
+
+  await prisma.loginAttempt.create({ data: { key } })
   return { allowed: true, retryAfterMs: 0 }
 }
 
@@ -42,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { email, password } = parsed.data
-    const { allowed, retryAfterMs } = checkRateLimit(`${ip}:${email.toLowerCase()}`)
+    const { allowed, retryAfterMs } = await checkRateLimit(`${ip}:${email.toLowerCase()}`)
 
     if (!allowed) {
       return NextResponse.json(
@@ -79,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: { userId: user.id } })
 
   } catch (err) {
-    console.error('[login]', err)
+    log('error', 'login_failed', { error: String(err) })
     return NextResponse.json({ success: false, error: 'Login failed' }, { status: 500 })
   }
 }
