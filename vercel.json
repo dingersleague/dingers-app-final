@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/stat-sync",
-      "schedule": "*/15 13-4 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/weekly-rollover",
