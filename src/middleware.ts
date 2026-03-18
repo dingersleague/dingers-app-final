@@ -60,9 +60,9 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all paths except static files and _next internals.
+     * Match all paths except API routes, static files, and _next internals.
      * API routes do their own auth — middleware only handles page navigation.
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }
