@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic' // prevent static build-time evaluation
 
-const MAX_ROSTER = 13
+const MAX_ROSTER = 14
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        teamId: user.teamId,
         playerIds: slots.map(s => s.playerId),
         count: slots.length,
         isFull: slots.length >= MAX_ROSTER,

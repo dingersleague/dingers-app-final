@@ -13,11 +13,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
     }
 
+    // Support viewing another team's roster (for trades)
+    const { searchParams } = req.nextUrl
+    const viewTeamId = searchParams.get('teamId') || user.teamId
+
     const season = new Date().getFullYear()
 
     // Get current league week
     const league = await prisma.league.findFirst({
-      where: { teams: { some: { id: user.teamId } } },
+      where: { teams: { some: { id: viewTeamId } } },
       include: {
         weeks: {
           where: { weekNumber: { gt: 0 } },
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     // Get team roster with player stats
     const rosterSlots = await prisma.rosterSlot.findMany({
-      where: { teamId: user.teamId },
+      where: { teamId: viewTeamId },
       include: {
         player: {
           include: {
@@ -60,13 +64,13 @@ export async function GET(req: NextRequest) {
       matchup = await prisma.matchup.findFirst({
         where: {
           weekId: currentWeek.id,
-          OR: [{ homeTeamId: user.teamId }, { awayTeamId: user.teamId }],
+          OR: [{ homeTeamId: viewTeamId }, { awayTeamId: viewTeamId }],
         },
       })
 
       if (matchup) {
         lineupSlots = await prisma.lineupSlot.findMany({
-          where: { matchupId: matchup.id, rosterSlot: { teamId: user.teamId } },
+          where: { matchupId: matchup.id, rosterSlot: { teamId: viewTeamId } },
         })
       }
     }

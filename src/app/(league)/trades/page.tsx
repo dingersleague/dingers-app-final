@@ -38,9 +38,10 @@ export default function TradesPage() {
   const [myPick, setMyPick] = useState<string | null>(null)
   const [theirPick, setTheirPick] = useState<string | null>(null)
   const [trades, setTrades] = useState<Trade[]>([])
+  const [myTeamId, setMyTeamId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [step, setStep] = useState<1 | 2 | 3>(1) // 1=pick team, 2=pick players, 3=confirm
+  const [step, setStep] = useState<1 | 2 | 3>(1)
 
   useEffect(() => { fetchData() }, [])
   useEffect(() => { if (selectedTeam) { fetchTheirRoster(selectedTeam.id); setStep(2) } }, [selectedTeam])
@@ -61,8 +62,17 @@ export default function TradesPage() {
           seasonHR: r.player.seasonHR, position: r.position,
         })))
       }
+      // Get my team ID from roster info
+      const infoRes = await fetch('/api/roster/info')
+      const infoData = await infoRes.json()
+      if (infoData.success) setMyTeamId(infoData.data.teamId)
+
       if (tradesData.success) setTrades(tradesData.data)
-      if (teamsData.success) setTeams(teamsData.data.map((t: any) => t.team))
+      // Filter out my own team from trade partners
+      if (teamsData.success) {
+        const allTeams = teamsData.data.map((t: any) => t.team)
+        setTeams(infoData.success ? allTeams.filter((t: any) => t.id !== infoData.data.teamId) : allTeams)
+      }
     } catch { toast.error('Failed to load') }
     setLoading(false)
   }
