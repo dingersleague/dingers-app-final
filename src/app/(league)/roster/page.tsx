@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Lock, Unlock, RefreshCw, Save, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
-const POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN']
+const POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN', 'IL']
 
 interface RosterPlayer {
   rosterSlotId: string
@@ -154,8 +154,9 @@ export default function RosterPage() {
     }
   }
 
-  const starters = lineup.filter(s => s.position !== 'BN')
+  const starters = lineup.filter(s => s.position !== 'BN' && s.position !== 'IL')
   const bench = lineup.filter(s => s.position === 'BN')
+  const ilSlots = lineup.filter(s => s.position === 'IL')
   const totalWeeklyHR = starters.reduce((sum, s) => sum + (s.player?.weeklyHR ?? 0), 0)
 
   if (loading) {

@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     const lockTime = currentWeek ? getLineupLockTime(currentWeek.startDate) : null
 
     // Build full lineup structure
-    const LINEUP_POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN']
+    const LINEUP_POSITIONS = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL', 'BN', 'BN', 'BN', 'BN', 'IL']
 
     const rosterPlayers = rosterSlots.map(slot => ({
       rosterSlotId: slot.id,
@@ -99,15 +99,16 @@ export async function GET(req: NextRequest) {
       locked: lineupMap.get(slot.id)?.locked ?? false,
     }))
 
-    // Build lineup slots (ordered)
-    const positionCounts: Record<string, number> = {}
+    // Build lineup slots (ordered) — track used roster slots to prevent
+    // the same player appearing in multiple slots of the same position (OF, BN)
+    const usedRosterSlotIds = new Set<string>()
     const lineup = LINEUP_POSITIONS.map(pos => {
-      positionCounts[pos] = (positionCounts[pos] ?? 0) + 1
-      // Find player assigned to this position slot
       const player = rosterPlayers.find(p =>
         p.position === pos &&
+        !usedRosterSlotIds.has(p.rosterSlotId) &&
         (pos !== 'BN' ? p.isStarter : !p.isStarter)
       )
+      if (player) usedRosterSlotIds.add(player.rosterSlotId)
       return { position: pos, player: player ?? null }
     })
 
