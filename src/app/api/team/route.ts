@@ -8,9 +8,10 @@ export const dynamic = 'force-dynamic'
 const UpdateSchema = z.object({
   name: z.string().min(2).max(50).optional(),
   abbreviation: z.string().min(2).max(5).toUpperCase().optional(),
-  logoUrl: z.string().max(200_000).nullable().optional(), // base64 data URL can be large
+  logoUrl: z.string().max(200_000).nullable().optional(),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  draftAutoPick: z.boolean().optional(),
 })
 
 // PATCH /api/team — update own team settings
@@ -53,6 +54,7 @@ export async function PATCH(req: NextRequest) {
         ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
         ...(data.primaryColor !== undefined && { primaryColor: data.primaryColor }),
         ...(data.secondaryColor !== undefined && { secondaryColor: data.secondaryColor }),
+        ...(data.draftAutoPick !== undefined && { draftAutoPick: data.draftAutoPick }),
       },
     })
 

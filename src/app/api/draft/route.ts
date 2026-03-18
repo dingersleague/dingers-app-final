@@ -116,6 +116,7 @@ export async function GET() {
         timerEndsAt,
         totalPicks: picks.length,
         myTeamId: userWithTeam.team.id,
+        myAutoPick: userWithTeam.team.draftAutoPick,
         leagueStatus: league.status,
         picks: formattedPicks,
         availablePlayers: sortedAvailable,

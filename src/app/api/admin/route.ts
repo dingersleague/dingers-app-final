@@ -213,6 +213,79 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Draft started' })
     }
 
+    // ── Undo last pick ─────────────────────────────────────────────
+    if (action === 'undo_last_pick') {
+      const draftSettings = await prisma.draftSettings.findFirst({ where: { leagueId: league.id } })
+      if (!draftSettings) return NextResponse.json({ success: false, error: 'No draft' }, { status: 400 })
+      if (draftSettings.status !== 'ACTIVE' && draftSettings.status !== 'PAUSED') {
+        return NextResponse.json({ success: false, error: 'Draft must be active or paused' }, { status: 400 })
+      }
+
+      // The last completed pick is currentPick - 1
+      const lastPickNumber = draftSettings.currentPick - 1
+      if (lastPickNumber < 1) {
+        return NextResponse.json({ success: false, error: 'No picks to undo' }, { status: 400 })
+      }
+
+      const lastPick = await prisma.draftPick.findFirst({
+        where: { draftSettingsId: draftSettings.id, pickNumber: lastPickNumber },
+        include: {
+          player: { select: { fullName: true } },
+          team: { select: { id: true, name: true } },
+        },
+      })
+      if (!lastPick || !lastPick.playerId) {
+        return NextResponse.json({ success: false, error: 'Last pick has no player to undo' }, { status: 400 })
+      }
+
+      const undonePlayerName = lastPick.player!.fullName
+
+      await prisma.$transaction(async tx => {
+        // Remove player from roster
+        await tx.rosterSlot.deleteMany({
+          where: { teamId: lastPick.team.id, playerId: lastPick.playerId! },
+        })
+
+        // Clear the pick
+        await tx.draftPick.update({
+          where: { id: lastPick.id },
+          data: { playerId: null, pickedAt: null, isAutoPick: false },
+        })
+
+        // Clear the current pick's nominatedAt (it hasn't been made yet)
+        const currentPick = await tx.draftPick.findFirst({
+          where: { draftSettingsId: draftSettings.id, pickNumber: draftSettings.currentPick },
+        })
+        if (currentPick) {
+          await tx.draftPick.update({
+            where: { id: currentPick.id },
+            data: { nominatedAt: null },
+          })
+        }
+
+        // Move draft back to the undone pick
+        await tx.draftSettings.update({
+          where: { id: draftSettings.id },
+          data: {
+            currentPick: lastPickNumber,
+            currentRound: lastPick.round,
+            status: 'PAUSED', // Pause so commissioner can review
+          },
+        })
+
+        // Set nominatedAt on the rewound pick (for when draft resumes)
+        await tx.draftPick.update({
+          where: { id: lastPick.id },
+          data: { nominatedAt: new Date() },
+        })
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: `Undid pick #${lastPickNumber}: ${undonePlayerName} removed from ${lastPick.team.name}. Draft paused — resume when ready.`,
+      })
+    }
+
     // ── Pause draft ──────────────────────────────────────────────
     if (action === 'pause_draft') {
       const draftSettings = await prisma.draftSettings.findFirst({ where: { leagueId: league.id } })

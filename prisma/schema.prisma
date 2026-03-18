@@ -107,6 +107,7 @@ model Team {
   pointsFor       Float     @default(0)
   pointsAgainst   Float     @default(0)
   draftPosition   Int?
+  draftAutoPick   Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

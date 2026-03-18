@@ -43,6 +43,7 @@ interface DraftState {
   timerEndsAt: string | null
   totalPicks: number
   myTeamId: string
+  myAutoPick: boolean
   leagueStatus: string
   picks: DraftPick[]
   availablePlayers: AvailablePlayer[]
@@ -57,8 +58,11 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
+  const [autoPilot, setAutoPilot] = useState(false)
+  const [togglingAutoPilot, setTogglingAutoPilot] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const autoPickTriggered = useRef(false)
+  const autoPilotTriggered = useRef(false)
   const latestPickRef = useRef<number>(0)
 
   // ── Poll draft state ─────────────────────────────────────────
@@ -83,7 +87,21 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
         latestPickRef.current = newState.currentPick
 
         setState(newState)
+        setAutoPilot(newState.myAutoPick)
         autoPickTriggered.current = false
+
+        // Autopilot: if it's my turn and autopilot is on, trigger auto-pick immediately
+        if (
+          newState.myAutoPick &&
+          newState.status === 'ACTIVE' &&
+          newState.currentTeamId === myTeamId &&
+          !autoPilotTriggered.current
+        ) {
+          autoPilotTriggered.current = true
+          triggerAutoPick()
+        } else if (newState.currentTeamId !== myTeamId) {
+          autoPilotTriggered.current = false
+        }
       }
     } catch {
       // Silently retry next poll
@@ -120,6 +138,26 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
     timerRef.current = setInterval(tick, 1000)
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [state?.timerEndsAt, state?.status, state?.currentPick])
+
+  async function toggleAutoPilot() {
+    const newValue = !autoPilot
+    setTogglingAutoPilot(true)
+    try {
+      const res = await fetch('/api/team', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftAutoPick: newValue }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setAutoPilot(newValue)
+        toast(newValue ? 'Autopilot ON — best available will be drafted for you' : 'Autopilot OFF — you pick manually')
+      }
+    } catch {
+      toast.error('Failed to toggle autopilot')
+    }
+    setTogglingAutoPilot(false)
+  }
 
   async function triggerAutoPick() {
     try {
@@ -227,19 +265,37 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
               </div>
             </div>
 
-            {/* Timer */}
-            {countdown !== null && (
-              <div className={`text-center ${countdown <= 10 ? 'animate-pulse' : ''}`}>
-                <div className={`font-display font-black text-5xl leading-none ${
-                  countdown <= 10 ? 'text-accent-red' : countdown <= 30 ? 'text-accent-amber' : 'text-text-primary'
-                }`}>
-                  {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+            <div className="flex items-center gap-4">
+              {/* Autopilot Toggle */}
+              <button
+                onClick={toggleAutoPilot}
+                disabled={togglingAutoPilot}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+                  autoPilot
+                    ? 'bg-accent-amber/15 text-accent-amber border-accent-amber/30'
+                    : 'bg-surface-3 text-text-muted border-surface-border hover:text-text-primary'
+                }`}
+              >
+                <div className={`w-8 h-4 rounded-full relative transition-colors ${autoPilot ? 'bg-accent-amber' : 'bg-surface-4'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all ${autoPilot ? 'left-4' : 'left-0.5'}`} />
                 </div>
-                <div className="text-xs text-text-muted mt-1 flex items-center gap-1 justify-center">
-                  <Clock size={10} /> Time remaining
+                {autoPilot ? 'Auto ON' : 'Auto OFF'}
+              </button>
+
+              {/* Timer */}
+              {countdown !== null && (
+                <div className={`text-center ${countdown <= 10 ? 'animate-pulse' : ''}`}>
+                  <div className={`font-display font-black text-5xl leading-none ${
+                    countdown <= 10 ? 'text-accent-red' : countdown <= 30 ? 'text-accent-amber' : 'text-text-primary'
+                  }`}>
+                    {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+                  </div>
+                  <div className="text-xs text-text-muted mt-1 flex items-center gap-1 justify-center">
+                    <Clock size={10} /> Time remaining
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

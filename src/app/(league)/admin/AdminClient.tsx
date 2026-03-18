@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { RefreshCw, Play, Pause, Calendar, Users, Settings, CheckCircle, XCircle, Edit3, Search } from 'lucide-react'
+import { RefreshCw, Play, Pause, Calendar, Users, Settings, CheckCircle, XCircle, Edit3, Search, Undo2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface AdminClientProps {
@@ -263,6 +263,20 @@ export default function AdminClient({ league, syncLogs }: AdminClientProps) {
                   ? <RefreshCw size={14} className="animate-spin" />
                   : <Pause size={14} />}
                 Pause Draft
+              </button>
+            )}
+
+            {/* Undo Last Pick */}
+            {(isDraftActive || isDraftPaused) && (
+              <button
+                onClick={() => callAdmin('undo_last_pick')}
+                disabled={!!loading}
+                className="btn-secondary w-full flex items-center justify-center gap-2 border-accent-red/30 text-accent-red hover:bg-accent-red/10"
+              >
+                {loading === 'undo_last_pick'
+                  ? <RefreshCw size={14} className="animate-spin" />
+                  : <Undo2 size={14} />}
+                Undo Last Pick
               </button>
             )}
 
