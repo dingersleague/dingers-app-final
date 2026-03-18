@@ -53,8 +53,13 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
   if (!player) notFound()
 
-  // Fetch live bio + career stats from MLB API
-  const bio = await fetchPlayerBio(player.mlbId)
+  // Fetch live bio + career stats from MLB API (non-blocking — page works without it)
+  let bio: any = null
+  try {
+    bio = await fetchPlayerBio(player.mlbId)
+  } catch {
+    // MLB API down — continue without bio data
+  }
 
   const seasonHR = player.seasonStats[0]?.homeRuns ?? 0
   const gamesPlayed = player.seasonStats[0]?.gamesPlayed ?? 0
@@ -62,14 +67,21 @@ export default async function PlayerPage({ params }: { params: { id: string } })
   const hits = player.seasonStats[0]?.hits ?? 0
   const ownerSlot = player.rosterSlots[0]
 
-  // MLB API stats
-  const mlbSeasonStats = bio?.stats?.find((s: any) => s.type?.displayName === 'season')?.splits?.[0]?.stat
-  const mlbCareerStats = bio?.stats?.find((s: any) => s.type?.displayName === 'career')?.splits?.[0]?.stat
+  // MLB API stats (safely access nested fields)
+  let mlbSeasonStats: any = null
+  let mlbCareerStats: any = null
+  try {
+    mlbSeasonStats = bio?.stats?.find((s: any) => s.type?.displayName === 'season')?.splits?.[0]?.stat ?? null
+    mlbCareerStats = bio?.stats?.find((s: any) => s.type?.displayName === 'career')?.splits?.[0]?.stat ?? null
+  } catch { /* malformed API response */ }
 
   // Age calculation
-  const age = player.birthDate
-    ? differenceInYears(new Date(), new Date(player.birthDate))
-    : bio?.currentAge ?? null
+  let age: number | null = null
+  try {
+    age = player.birthDate
+      ? differenceInYears(new Date(), new Date(player.birthDate))
+      : bio?.currentAge ?? null
+  } catch { /* bad date */ }
 
   // HR pace
   const hrPer162 = gamesPlayed > 0 ? Math.round((seasonHR / gamesPlayed) * 162) : 0
@@ -123,13 +135,13 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
           {/* Bio line — below on mobile */}
           <div className="flex items-center gap-3 sm:gap-4 mt-4 text-xs sm:text-sm text-text-muted flex-wrap">
-            {age && <span>{age} yrs</span>}
-            {bio?.height && <span>{bio.height}</span>}
-            {bio?.weight && <span>{bio.weight} lbs</span>}
-            {player.bats && <span>B: {player.bats}</span>}
-            {player.throws && <span>T: {player.throws}</span>}
-            {bio?.draftYear && <span>Draft: {bio.draftYear}</span>}
-            {bio?.mlbDebutDate && <span>Debut: {format(new Date(bio.mlbDebutDate), 'MMM yyyy')}</span>}
+            {age != null && age > 0 && <span>{age} yrs</span>}
+            {bio?.height ? <span>{bio.height}</span> : null}
+            {bio?.weight ? <span>{bio.weight} lbs</span> : null}
+            {player.bats ? <span>B: {player.bats}</span> : null}
+            {player.throws ? <span>T: {player.throws}</span> : null}
+            {bio?.draftYear ? <span>Draft: {bio.draftYear}</span> : null}
+            {bio?.mlbDebutDate ? <span>Debut: {(() => { try { return format(new Date(bio.mlbDebutDate), 'MMM yyyy') } catch { return null } })()}</span> : null}
           </div>
         </div>
       </div>
@@ -235,7 +247,7 @@ export default async function PlayerPage({ params }: { params: { id: string } })
             {hrGames.map(game => (
               <div key={game.id} className="flex items-center gap-4 px-5 py-3">
                 <span className="font-mono text-sm text-text-muted w-24">
-                  {format(new Date(game.gameDate), 'MMM d, yyyy')}
+                  {(() => { try { return format(new Date(game.gameDate), 'MMM d, yyyy') } catch { return '—' } })()}
                 </span>
                 <div className="flex-1" />
                 <div className="flex items-center gap-2">
