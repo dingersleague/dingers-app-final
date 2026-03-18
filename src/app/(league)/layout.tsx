@@ -30,7 +30,7 @@ export default async function LeagueLayout({ children }: { children: React.React
     <div className="min-h-screen flex">
       <AppNav user={user} leagueStatus={leagueStatus} />
       <main className="flex-1 lg:ml-56 min-h-screen">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 lg:py-8 pt-20 lg:pt-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 lg:py-8 pt-16 lg:pt-8 pb-20 lg:pb-8">
           {children}
         </div>
       </main>

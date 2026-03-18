@@ -26,6 +26,15 @@ const navItems = [
   { href: '/team/settings', label: 'Team Settings', icon: Palette },
 ]
 
+// Bottom tab bar items (5 max for mobile)
+const mobileTabItems = [
+  { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/matchup', label: 'Matchup', icon: Zap },
+  { href: '/roster', label: 'Roster', icon: Users },
+  { href: '/players/search', label: 'Players', icon: Search },
+  { href: '/standings', label: 'Standings', icon: Trophy },
+]
+
 export default function AppNav({ user, leagueStatus }: NavProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -127,67 +136,80 @@ export default function AppNav({ user, leagueStatus }: NavProps) {
       </nav>
 
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-surface-1 border-b border-surface-border">
-        <div className="flex items-center justify-between px-4 h-14">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-surface-1/95 backdrop-blur-md border-b border-surface-border">
+        <div className="flex items-center justify-between px-4 h-12">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center">
-              <span className="font-display font-black text-xs text-surface-0">HR</span>
+            <div className="w-6 h-6 rounded-md bg-brand flex items-center justify-center">
+              <span className="font-display font-black text-[9px] text-surface-0">HR</span>
             </div>
-            <span className="font-display font-black text-lg text-text-primary tracking-tight">DINGERS</span>
+            <span className="font-display font-black text-base text-text-primary tracking-tight">DINGERS</span>
           </Link>
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 text-text-secondary hover:text-text-primary"
-          >
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          <div className="flex items-center gap-2">
+            {user.role === 'COMMISSIONER' && (
+              <Link href="/admin" className="p-1.5 text-accent-amber">
+                <Settings size={18} />
+              </Link>
+            )}
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="p-1.5 text-text-secondary hover:text-text-primary"
+            >
+              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
 
+        {/* Expandable menu for secondary items */}
         {mobileOpen && (
-          <div className="bg-surface-1 border-t border-surface-border px-4 py-4 flex flex-col gap-1">
+          <div className="bg-surface-1 border-t border-surface-border px-4 py-3 flex flex-col gap-0.5">
             {(leagueStatus === 'PREDRAFT' || leagueStatus === 'DRAFT') && (
               <Link
                 href="/draft"
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
-                  pathname.startsWith('/draft') ? 'bg-brand/10 text-brand' : 'bg-brand/5 text-brand border border-brand/20'
-                }`}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium bg-brand/5 text-brand border border-brand/20"
               >
                 <Target size={16} />
                 Draft Room
-                {leagueStatus === 'DRAFT' && (
-                  <span className="ml-auto w-2 h-2 rounded-full bg-brand animate-pulse" />
-                )}
+                {leagueStatus === 'DRAFT' && <span className="ml-auto w-2 h-2 rounded-full bg-brand animate-pulse" />}
               </Link>
             )}
-            {navItems.map(item => {
+            {navItems.filter(i => !mobileTabItems.some(t => t.href === i.href)).map(item => {
               const active = pathname.startsWith(item.href)
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
-                    active ? 'bg-brand/10 text-brand' : 'text-text-secondary'
-                  }`}
-                >
-                  <item.icon size={16} />
-                  {item.label}
+                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${active ? 'bg-brand/10 text-brand' : 'text-text-secondary'}`}>
+                  <item.icon size={16} /> {item.label}
                 </Link>
               )
             })}
-            {user.role === 'COMMISSIONER' && (
-              <Link
-                href="/admin"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-accent-amber"
-              >
-                <Settings size={16} />
-                Admin Panel
-              </Link>
-            )}
+            <form action="/api/auth/logout" method="POST">
+              <button type="submit" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-text-muted hover:text-accent-red">
+                <LogOut size={16} /> Sign out
+              </button>
+            </form>
           </div>
         )}
+      </div>
+
+      {/* Mobile bottom tab bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-1/95 backdrop-blur-md border-t border-surface-border safe-bottom">
+        <div className="flex items-center justify-around px-1 h-14">
+          {mobileTabItems.map(item => {
+            const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-colors ${
+                  active ? 'text-brand' : 'text-text-muted'
+                }`}
+              >
+                <item.icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+                <span className="text-[10px] font-semibold">{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </>
   )

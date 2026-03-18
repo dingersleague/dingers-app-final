@@ -55,6 +55,11 @@
 }
 
 @layer components {
+  /* Safe area for bottom nav on notched phones */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   /* Card */
   .card {
     @apply bg-surface-2 border border-surface-border rounded-2xl shadow-card;

@@ -2,8 +2,9 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { format, differenceInYears } from 'date-fns'
-import { ArrowLeft, TrendingUp, User, Activity, Calendar, Award } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Activity, Award } from 'lucide-react'
 import Link from 'next/link'
+import PlayerHeadshot from '@/components/PlayerHeadshot'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,9 +66,6 @@ export default async function PlayerPage({ params }: { params: { id: string } })
   const mlbSeasonStats = bio?.stats?.find((s: any) => s.type?.displayName === 'season')?.splits?.[0]?.stat
   const mlbCareerStats = bio?.stats?.find((s: any) => s.type?.displayName === 'career')?.splits?.[0]?.stat
 
-  // Headshot URL
-  const headshotUrl = `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/${player.mlbId}/headshot/67/current`
-
   // Age calculation
   const age = player.birthDate
     ? differenceInYears(new Date(), new Date(player.birthDate))
@@ -98,51 +96,40 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
       {/* Player header with headshot */}
       <div className="card overflow-hidden">
-        <div className="bg-hero-gradient p-6">
-          <div className="flex items-start gap-5">
-            {/* Headshot */}
-            <div className="w-24 h-24 rounded-xl overflow-hidden bg-surface-3 flex-shrink-0 border border-surface-border">
-              <img
-                src={headshotUrl}
-                alt={player.fullName}
-                className="w-full h-full object-cover"
-                onError={(e: any) => { e.target.style.display = 'none' }}
-              />
-            </div>
+        <div className="bg-hero-gradient p-4 sm:p-6">
+          <div className="flex items-start gap-3 sm:gap-5">
+            <PlayerHeadshot mlbId={player.mlbId} name={player.fullName} size="lg" />
 
             <div className="flex-1 min-w-0">
-              <h1 className="font-display font-black text-4xl tracking-tight leading-tight">
+              <h1 className="font-display font-black text-2xl sm:text-4xl tracking-tight leading-tight">
                 {player.fullName}
-                {bio?.nickName && <span className="text-text-muted text-xl ml-2">&ldquo;{bio.nickName}&rdquo;</span>}
               </h1>
+              {bio?.nickName && <div className="text-text-muted text-sm">&ldquo;{bio.nickName}&rdquo;</div>}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="badge-secondary font-mono">{player.positions.join(' / ')}</span>
-                <span className="text-text-muted text-sm">{player.mlbTeamName ?? player.mlbTeamAbbr ?? 'Free Agent'}</span>
-                <span className={STATUS_COLOR[player.status] ?? 'badge-secondary'}>
+                <span className="badge-secondary font-mono text-xs">{player.positions.join(' / ')}</span>
+                <span className="text-text-muted text-xs sm:text-sm">{player.mlbTeamName ?? player.mlbTeamAbbr ?? 'Free Agent'}</span>
+                <span className={`text-xs ${STATUS_COLOR[player.status] ?? 'badge-secondary'}`}>
                   {STATUS_LABEL[player.status] ?? player.status}
                 </span>
-              </div>
-
-              {/* Bio line */}
-              <div className="flex items-center gap-4 mt-3 text-sm text-text-muted flex-wrap">
-                {age && <span>{age} years old</span>}
-                {bio?.height && <span>{bio.height}</span>}
-                {bio?.weight && <span>{bio.weight} lbs</span>}
-                {player.bats && <span>Bats: {player.bats === 'R' ? 'Right' : player.bats === 'L' ? 'Left' : 'Switch'}</span>}
-                {player.throws && <span>Throws: {player.throws === 'R' ? 'Right' : 'Left'}</span>}
-              </div>
-              <div className="flex items-center gap-4 mt-1 text-xs text-text-muted flex-wrap">
-                {bio?.birthCity && <span>Born: {bio.birthCity}{bio.birthStateProvince ? `, ${bio.birthStateProvince}` : ''}{bio.birthCountry && bio.birthCountry !== 'USA' ? `, ${bio.birthCountry}` : ''}</span>}
-                {bio?.draftYear && <span>Drafted: {bio.draftYear}</span>}
-                {bio?.mlbDebutDate && <span>MLB Debut: {format(new Date(bio.mlbDebutDate), 'MMM d, yyyy')}</span>}
               </div>
             </div>
 
             {/* Big HR number */}
             <div className="text-right flex-shrink-0">
-              <div className="font-display font-black text-7xl text-brand leading-none">{seasonHR}</div>
+              <div className="font-display font-black text-5xl sm:text-7xl text-brand leading-none">{seasonHR}</div>
               <div className="stat-label mt-1">{season} HR</div>
             </div>
+          </div>
+
+          {/* Bio line — below on mobile */}
+          <div className="flex items-center gap-3 sm:gap-4 mt-4 text-xs sm:text-sm text-text-muted flex-wrap">
+            {age && <span>{age} yrs</span>}
+            {bio?.height && <span>{bio.height}</span>}
+            {bio?.weight && <span>{bio.weight} lbs</span>}
+            {player.bats && <span>B: {player.bats}</span>}
+            {player.throws && <span>T: {player.throws}</span>}
+            {bio?.draftYear && <span>Draft: {bio.draftYear}</span>}
+            {bio?.mlbDebutDate && <span>Debut: {format(new Date(bio.mlbDebutDate), 'MMM yyyy')}</span>}
           </div>
         </div>
       </div>
