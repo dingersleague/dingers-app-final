@@ -154,8 +154,10 @@ export async function POST() {
 
     // If draft just completed, handle post-draft
     if (result.done) {
+      const { assignStartingPositions } = await import('@/lib/draft')
       const { initializeWeekLineups } = await import('@/lib/scoring')
       const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } })
+      await assignStartingPositions(leagueId)
       await initializeWeekLineups(leagueId, league.currentWeek)
       log('info', 'draft_complete', { leagueId })
     }

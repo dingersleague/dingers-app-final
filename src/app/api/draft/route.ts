@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { log } from '@/lib/logger'
 import { LINEUP_POSITIONS } from '@/types'
+import { assignStartingPositions } from '@/lib/draft'
 
 export const dynamic = 'force-dynamic'
 
@@ -272,55 +273,3 @@ export async function POST(req: NextRequest) {
  * After draft completes, assign starting positions to each team's roster.
  * Fills C, 1B, 2B, SS, 3B, OF, OF, OF, UTIL in draft order, rest go to BN.
  */
-async function assignStartingPositions(leagueId: string) {
-  const teams = await prisma.team.findMany({
-    where: { leagueId },
-    include: {
-      rosterSlots: {
-        where: { acquiredVia: 'DRAFT' },
-        include: { player: true },
-        orderBy: { acquiredAt: 'asc' }, // draft order
-      },
-    },
-  })
-
-  for (const team of teams) {
-    const filled = new Set<string>()
-    const starterSlots = ['C', '1B', '2B', 'SS', '3B', 'OF', 'OF', 'OF', 'UTIL']
-
-    for (const slot of team.rosterSlots) {
-      const playerPos = slot.player.positions
-
-      // Try to fill a starter slot
-      let assigned = false
-      for (const targetPos of starterSlots) {
-        const slotKey = `${targetPos}-${[...filled].filter(f => f.startsWith(targetPos)).length}`
-        if (filled.has(slotKey)) continue
-
-        const eligible = targetPos === 'UTIL'
-          ? true // anyone can UTIL
-          : playerPos.some(p => {
-              if (targetPos === 'OF') return ['OF', 'LF', 'CF', 'RF'].includes(p)
-              return p === targetPos
-            })
-
-        if (eligible) {
-          await prisma.rosterSlot.update({
-            where: { id: slot.id },
-            data: { position: targetPos, slotType: 'STARTER' },
-          })
-          filled.add(slotKey)
-          assigned = true
-          break
-        }
-      }
-
-      if (!assigned) {
-        await prisma.rosterSlot.update({
-          where: { id: slot.id },
-          data: { position: 'BN', slotType: 'BENCH' },
-        })
-      }
-    }
-  }
-}
