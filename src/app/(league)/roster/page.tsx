@@ -40,6 +40,7 @@ export default function RosterPage() {
   const [saving, setSaving] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
   const [weekLabel, setWeekLabel] = useState<string | null>(null)
+  const [selectedSlotIdx, setSelectedSlotIdx] = useState<number | null>(null) // tap-to-swap
 
   useEffect(() => {
     fetchRoster()
@@ -72,10 +73,15 @@ export default function RosterPage() {
     }
     setSaving(true)
     try {
+      // Transform lineup to API format: { position, rosterSlotId }
+      const payload = lineup.map(slot => ({
+        position: slot.position,
+        rosterSlotId: slot.player?.rosterSlotId ?? null,
+      }))
       const res = await fetch('/api/roster/lineup', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lineup }),
+        body: JSON.stringify({ lineup: payload }),
       })
       const data = await res.json()
       if (data.success) {
@@ -99,7 +105,6 @@ export default function RosterPage() {
     const draggedPlayer = roster.find(p => p.rosterSlotId === dragging)
     if (!draggedPlayer) return
 
-    // Check eligibility
     const eligible = canPlayInSlot(draggedPlayer.player.positions, targetPosition)
     if (!eligible) {
       toast.error(`${draggedPlayer.player.fullName} is not eligible for ${targetPosition}`)
@@ -107,7 +112,6 @@ export default function RosterPage() {
       return
     }
 
-    // Swap players in lineup
     setLineup(prev => {
       const newLineup = [...prev]
       const targetSlot = newLineup.find(s => s.position === targetPosition)
@@ -125,6 +129,54 @@ export default function RosterPage() {
     })
 
     setDragging(null)
+  }
+
+  // Tap-to-swap: first tap selects, second tap swaps
+  function handleTapSlot(slotIndex: number) {
+    if (isLocked) return
+
+    if (selectedSlotIdx === null) {
+      // First tap — select this slot
+      setSelectedSlotIdx(slotIndex)
+      return
+    }
+
+    if (selectedSlotIdx === slotIndex) {
+      // Tapped same slot — deselect
+      setSelectedSlotIdx(null)
+      return
+    }
+
+    // Second tap — swap the two slots
+    const fromSlot = lineup[selectedSlotIdx]
+    const toSlot = lineup[slotIndex]
+
+    // Check eligibility both ways
+    if (toSlot.player && fromSlot.position !== 'BN' && fromSlot.position !== 'IL') {
+      if (!canPlayInSlot(toSlot.player.player.positions, fromSlot.position)) {
+        toast.error(`${toSlot.player.player.fullName} can't play ${fromSlot.position}`)
+        setSelectedSlotIdx(null)
+        return
+      }
+    }
+    if (fromSlot.player && toSlot.position !== 'BN' && toSlot.position !== 'IL') {
+      if (!canPlayInSlot(fromSlot.player.player.positions, toSlot.position)) {
+        toast.error(`${fromSlot.player.player.fullName} can't play ${toSlot.position}`)
+        setSelectedSlotIdx(null)
+        return
+      }
+    }
+
+    setLineup(prev => {
+      const newLineup = [...prev]
+      const temp = newLineup[selectedSlotIdx].player
+      newLineup[selectedSlotIdx] = { ...newLineup[selectedSlotIdx], player: newLineup[slotIndex].player }
+      newLineup[slotIndex] = { ...newLineup[slotIndex], player: temp }
+      return newLineup
+    })
+
+    setSelectedSlotIdx(null)
+    toast('Players swapped — save to confirm', { icon: '🔄' })
   }
 
   function canPlayInSlot(positions: string[], slot: string): boolean {
@@ -254,16 +306,23 @@ export default function RosterPage() {
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-surface-border">
             <h2 className="font-display font-bold text-xl tracking-tight">Starting Lineup</h2>
-            <p className="text-text-muted text-xs mt-0.5">Drag players to swap positions</p>
+            <p className="text-text-muted text-xs mt-0.5">
+              {selectedSlotIdx !== null ? 'Tap another player to swap' : 'Tap a player to move them'}
+            </p>
           </div>
           <div className="divide-y divide-surface-border/50">
-            {starters.map((slot, i) => (
+            {starters.map((slot, i) => {
+              const globalIdx = lineup.indexOf(slot)
+              const isSelected = selectedSlotIdx === globalIdx
+              return (
               <div
                 key={`${slot.position}-${i}`}
-                className={`flex items-center gap-3 px-5 py-3 transition-colors
-                  ${dragging ? 'hover:bg-brand/5 cursor-copy' : ''}
-                  ${!slot.player && dragging ? 'bg-brand/5 border-l-2 border-brand' : ''}
+                className={`flex items-center gap-3 px-5 py-3 transition-colors cursor-pointer
+                  ${isSelected ? 'bg-brand/10 border-l-3 border-brand' : ''}
+                  ${selectedSlotIdx !== null && !isSelected ? 'hover:bg-brand/5' : ''}
+                  ${dragging ? 'hover:bg-brand/5' : ''}
                 `}
+                onClick={() => handleTapSlot(globalIdx)}
                 onDragOver={e => { e.preventDefault() }}
                 onDrop={() => handleDrop(slot.position)}
               >
@@ -323,7 +382,8 @@ export default function RosterPage() {
                   <div className="flex-1 text-text-muted text-sm italic">Empty slot</div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -334,12 +394,18 @@ export default function RosterPage() {
             <p className="text-text-muted text-xs mt-0.5">Bench players do not score</p>
           </div>
           <div className="divide-y divide-surface-border/50">
-            {bench.map((slot, i) => (
+            {bench.map((slot, i) => {
+              const globalIdx = lineup.indexOf(slot)
+              const isSelected = selectedSlotIdx === globalIdx
+              return (
               <div
                 key={`BN-${i}`}
-                className={`flex items-center gap-3 px-5 py-3 transition-colors
-                  ${dragging ? 'hover:bg-surface-3 cursor-copy' : ''}
+                className={`flex items-center gap-3 px-5 py-3 transition-colors cursor-pointer
+                  ${isSelected ? 'bg-brand/10 border-l-3 border-brand' : ''}
+                  ${selectedSlotIdx !== null && !isSelected ? 'hover:bg-brand/5' : ''}
+                  ${dragging ? 'hover:bg-surface-3' : ''}
                 `}
+                onClick={() => handleTapSlot(globalIdx)}
                 onDragOver={e => e.preventDefault()}
                 onDrop={() => handleDrop('BN')}
               >
@@ -394,10 +460,22 @@ export default function RosterPage() {
                   <div className="flex-1 text-text-muted text-sm italic">Empty bench spot</div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
+
+      {/* Selection hint */}
+      {selectedSlotIdx !== null && (
+        <div className="fixed bottom-20 lg:bottom-4 left-1/2 -translate-x-1/2 z-50 bg-brand text-surface-0 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in">
+          <span className="text-sm font-semibold">
+            {lineup[selectedSlotIdx]?.player?.player.fullName ?? 'Empty slot'} selected
+          </span>
+          <span className="text-xs opacity-80">Tap another slot to swap</span>
+          <button onClick={() => setSelectedSlotIdx(null)} className="text-xs underline opacity-80 hover:opacity-100">Cancel</button>
+        </div>
+      )}
     </div>
   )
 }
