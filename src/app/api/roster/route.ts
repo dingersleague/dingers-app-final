@@ -116,15 +116,88 @@ export async function GET(req: NextRequest) {
       return { position: pos, player: player ?? null }
     })
 
+    // Fetch MLB schedule for the current week (games per team)
+    let teamSchedules: Record<string, Array<{ date: string; opponent: string; home: boolean }>> = {}
+    if (currentWeek) {
+      try {
+        const startDate = format(new Date(currentWeek.startDate), 'yyyy-MM-dd')
+        const endDate = format(new Date(currentWeek.endDate), 'yyyy-MM-dd')
+        const schedRes = await fetch(
+          `https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=${startDate}&endDate=${endDate}&hydrate=team&gameType=R`,
+          { next: { revalidate: 3600 } }
+        )
+        const schedData = await schedRes.json()
+        const games = (schedData.dates ?? []).flatMap((d: any) => d.games ?? [])
+
+        for (const game of games) {
+          const homeAbbr = game.teams?.home?.team?.abbreviation
+          const awayAbbr = game.teams?.away?.team?.abbreviation
+          const gameDate = game.gameDate?.split('T')[0] ?? ''
+
+          if (homeAbbr) {
+            if (!teamSchedules[homeAbbr]) teamSchedules[homeAbbr] = []
+            teamSchedules[homeAbbr].push({ date: gameDate, opponent: awayAbbr ?? '?', home: true })
+          }
+          if (awayAbbr) {
+            if (!teamSchedules[awayAbbr]) teamSchedules[awayAbbr] = []
+            teamSchedules[awayAbbr].push({ date: gameDate, opponent: homeAbbr ?? '?', home: false })
+          }
+        }
+      } catch {
+        // Schedule fetch failed — continue without it
+      }
+    }
+
+    // Fetch MLB injury report for rostered players
+    let playerNotes: Record<string, string> = {}
+    try {
+      const injRes = await fetch(
+        'https://statsapi.mlb.com/api/v1/injuries?sportId=1',
+        { next: { revalidate: 3600 } }
+      )
+      const injData = await injRes.json()
+      const mlbIds = new Set(rosterSlots.map(s => s.player.mlbId))
+      for (const inj of (injData.injuries ?? [])) {
+        if (mlbIds.has(inj.player?.id)) {
+          const note = [inj.description, inj.status].filter(Boolean).join(' — ')
+          if (note) playerNotes[inj.player.id] = note
+        }
+      }
+    } catch {
+      // Injury fetch failed — continue without it
+    }
+
+    // Add schedule and notes to player data
+    const enrichedRoster = rosterPlayers.map(rp => {
+      const slot = rosterSlots.find(s => s.id === rp.rosterSlotId)
+      const mlbTeamAbbr = slot?.player.mlbTeamAbbr
+      const mlbId = slot?.player.mlbId
+      const games = mlbTeamAbbr ? (teamSchedules[mlbTeamAbbr] ?? []) : []
+      return {
+        ...rp,
+        player: {
+          ...rp.player,
+          gamesThisWeek: games.length,
+          schedule: games.slice(0, 7).map(g => ({
+            date: g.date,
+            opponent: g.home ? `vs ${g.opponent}` : `@ ${g.opponent}`,
+          })),
+          news: mlbId ? (playerNotes[mlbId] ?? null) : null,
+        },
+      }
+    })
+
     return NextResponse.json({
       success: true,
       data: {
-        roster: rosterPlayers,
+        roster: enrichedRoster,
         lineup,
         isLocked: locked,
         lockTime: lockTime ? format(lockTime, 'MMM d, h:mm a') : null,
         matchupId: matchup?.id ?? null,
         weekNumber: currentWeek?.weekNumber ?? null,
+        weekStart: currentWeek ? format(new Date(currentWeek.startDate), 'MMM d') : null,
+        weekEnd: currentWeek ? format(new Date(currentWeek.endDate), 'MMM d') : null,
       },
     })
 
