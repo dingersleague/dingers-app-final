@@ -182,11 +182,18 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    // Rebuild lineup with enriched player data
+    const enrichedMap = new Map(enrichedRoster.map(r => [r.rosterSlotId, r]))
+    const enrichedLineup = lineup.map(slot => ({
+      ...slot,
+      player: slot.player ? (enrichedMap.get(slot.player.rosterSlotId) ?? slot.player) : null,
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
         roster: enrichedRoster,
-        lineup,
+        lineup: enrichedLineup,
         isLocked: locked,
         lockTime: lockTime ? format(lockTime, 'MMM d, h:mm a') : null,
         matchupId: matchup?.id ?? null,
