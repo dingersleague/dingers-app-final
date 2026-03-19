@@ -54,8 +54,14 @@ export async function GET(req: NextRequest) {
       // Other team name
       const otherTeam = txs.find(t => t.teamId === otherTeamId)?.team ?? txs.find(t => t.relatedTeamId === otherTeamId)?.team
 
-      // Am I the one who needs to respond? (I'm the receiver if I have TRADE_DROP pending)
-      const needsMyResponse = txs.some(t => t.type === 'TRADE_DROP' && t.teamId === user.teamId && t.status === 'PENDING')
+      // Determine who proposed: tradeId format is "trade:...:from:<teamId>"
+      const fromMatch = tradeId.match(/:from:(.+)$/)
+      const partnerTeamId = fromMatch ? fromMatch[1] : null
+
+      // I need to respond only if I'm NOT the proposer and the trade is pending
+      const needsMyResponse = partnerTeamId
+        ? partnerTeamId !== user.teamId && status === 'PENDING'
+        : txs.some(t => t.type === 'TRADE_DROP' && t.teamId === user.teamId && t.status === 'PENDING')
 
       return {
         trade_id: tradeId,
@@ -122,10 +128,7 @@ export async function POST(req: NextRequest) {
       if (!slot) return NextResponse.json({ success: false, error: 'Target team does not own one of the requested players' }, { status: 400 })
     }
 
-    const tradeId = `trade:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-    // Store the full player lists as JSON in the notes field alongside the tradeId
-    const tradeData = JSON.stringify({ offerPlayerIds, receivePlayerIds })
+    const tradeId = `trade:${Date.now()}-${Math.random().toString(36).slice(2, 8)}:from:${user.teamId}`
 
     const txRecords: any[] = []
     // For each player the proposer gives, create TRADE_ADD on target + TRADE_DROP on proposer
@@ -153,7 +156,7 @@ export async function POST(req: NextRequest) {
 
     await prisma.transaction.createMany({ data: txRecords })
 
-    log('info', 'trade_proposed', { tradeId, proposerTeamId: user.teamId, targetTeamId, offerPlayerIds, receivePlayerIds })
+    log('info', 'trade_proposed', { tradeId, partnerTeamId: user.teamId, targetTeamId, offerPlayerIds, receivePlayerIds })
 
     const offerNames = await prisma.player.findMany({ where: { id: { in: offerPlayerIds } }, select: { fullName: true } })
     const receiveNames = await prisma.player.findMany({ where: { id: { in: receivePlayerIds } }, select: { fullName: true } })
@@ -192,7 +195,7 @@ export async function PATCH(req: NextRequest) {
 
     const { tradeId, action } = parsed.data
 
-    // Pre-flight: confirm trade exists and this user is the recipient
+    // Pre-flight: confirm trade exists and this user is the recipient (NOT the proposer)
     const tradeTxs = await prisma.transaction.findMany({
       where: { notes: tradeId, leagueId: user.leagueId, status: 'PENDING' },
     })
@@ -201,9 +204,19 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Trade not found or already processed' }, { status: 404 })
     }
 
-    const myTx = tradeTxs.find(t => t.teamId === user.teamId && t.type === 'TRADE_DROP')
+    // Extract proposer from tradeId format "trade:...:from:<teamId>"
+    const proposerMatch = tradeId.match(/:from:(.+)$/)
+    const partnerTeamId = proposerMatch ? proposerMatch[1] : null
+
+    // Verify this user is actually involved in the trade
+    const myTx = tradeTxs.find(t => t.teamId === user.teamId)
     if (!myTx) {
       return NextResponse.json({ success: false, error: 'Not your trade to respond to' }, { status: 403 })
+    }
+
+    // Proposer can only cancel (reject), not accept their own trade
+    if (partnerTeamId === user.teamId && action === 'accept') {
+      return NextResponse.json({ success: false, error: 'You cannot accept your own trade proposal' }, { status: 403 })
     }
 
     if (action === 'reject') {
@@ -223,18 +236,20 @@ export async function PATCH(req: NextRequest) {
 
     // Gather all trade transactions to find players involved
     const allTradeTxs = tradeTxs
-    const proposerTeamId = allTradeTxs.find(t => t.type === 'TRADE_ADD' && t.teamId !== user.teamId)?.teamId
+    // partnerTeamId already extracted from tradeId above; fallback to transaction data
+    const resolvedPartner = partnerTeamId
+      ?? allTradeTxs.find(t => t.type === 'TRADE_ADD' && t.teamId !== user.teamId)?.teamId
       ?? allTradeTxs.find(t => t.type === 'TRADE_DROP' && t.teamId !== user.teamId)?.teamId
     const receiverTeamId = user.teamId
 
-    if (!proposerTeamId) {
+    if (!resolvedPartner) {
       return NextResponse.json({ success: false, error: 'Cannot determine trade partner' }, { status: 500 })
     }
 
     // Players proposer sends (receiver gets) = TRADE_ADD where teamId = receiver
     const receiverGets = allTradeTxs.filter(t => t.type === 'TRADE_ADD' && t.teamId === receiverTeamId).map(t => t.playerId)
     // Players receiver sends (proposer gets) = TRADE_ADD where teamId = proposer
-    const proposerGets = allTradeTxs.filter(t => t.type === 'TRADE_ADD' && t.teamId === proposerTeamId).map(t => t.playerId)
+    const proposerGets = allTradeTxs.filter(t => t.type === 'TRADE_ADD' && t.teamId === resolvedPartner).map(t => t.playerId)
 
     try {
       await prisma.$transaction(async tx => {
@@ -243,7 +258,7 @@ export async function PATCH(req: NextRequest) {
 
         // Validate all players still owned
         for (const pid of receiverGets) {
-          const slot = await tx.rosterSlot.findFirst({ where: { playerId: pid, teamId: proposerTeamId } })
+          const slot = await tx.rosterSlot.findFirst({ where: { playerId: pid, teamId: resolvedPartner } })
           if (!slot) throw new Error('PROPOSER_LOST_PLAYER')
         }
         for (const pid of proposerGets) {
@@ -253,10 +268,10 @@ export async function PATCH(req: NextRequest) {
 
         // Execute swaps
         for (const pid of receiverGets) {
-          await tx.rosterSlot.updateMany({ where: { playerId: pid, teamId: proposerTeamId }, data: { teamId: receiverTeamId, acquiredVia: 'TRADE' } })
+          await tx.rosterSlot.updateMany({ where: { playerId: pid, teamId: resolvedPartner }, data: { teamId: receiverTeamId, acquiredVia: 'TRADE' } })
         }
         for (const pid of proposerGets) {
-          await tx.rosterSlot.updateMany({ where: { playerId: pid, teamId: receiverTeamId }, data: { teamId: proposerTeamId, acquiredVia: 'TRADE' } })
+          await tx.rosterSlot.updateMany({ where: { playerId: pid, teamId: receiverTeamId }, data: { teamId: resolvedPartner, acquiredVia: 'TRADE' } })
         }
 
         await tx.transaction.updateMany({ where: { notes: tradeId }, data: { status: 'PROCESSED', processedAt: new Date() } })
@@ -272,7 +287,7 @@ export async function PATCH(req: NextRequest) {
       throw txErr
     }
 
-    log('info', 'trade_accepted', { tradeId, proposerTeamId, receiverTeamId, receiverGets, proposerGets })
+    log('info', 'trade_accepted', { tradeId, partner: resolvedPartner, receiverTeamId, receiverGets, proposerGets })
     return NextResponse.json({ success: true, message: 'Trade accepted and executed' })
 
   } catch (err: any) {

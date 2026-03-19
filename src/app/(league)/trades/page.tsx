@@ -189,7 +189,13 @@ export default function TradesPage() {
                 <span className="text-text-muted"> for </span>
                 <span className="text-brand">{trade.i_get.map(p => p.name).join(', ')}</span>
               </div>
-              <span className="text-xs text-accent-amber font-semibold">Waiting</span>
+              <span className="text-xs text-accent-amber font-semibold mr-2">Waiting</span>
+              <button
+                onClick={() => respondToTrade(trade.trade_id, 'reject')}
+                className="text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-accent-red hover:bg-red-500/20 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           ))}
         </div>
