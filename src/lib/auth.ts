@@ -17,6 +17,7 @@ import { getIronSession, SessionOptions } from 'iron-session'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { SessionUser } from '@/types'
+import { prisma } from '@/lib/prisma'
 
 export const sessionOptions: SessionOptions = {
   password: process.env.SESSION_SECRET!,
@@ -45,11 +46,23 @@ export async function getSession() {
 }
 
 // Get current authenticated user — throws 'UNAUTHENTICATED' if no session
+// Also verifies the user still exists in DB (handles stale sessions after data resets)
 export async function requireAuth(): Promise<SessionUser> {
   const session = await getSession()
   if (!session.user) {
     throw new Error('UNAUTHENTICATED')
   }
+
+  // Verify user still exists in DB
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true },
+  })
+  if (!dbUser) {
+    session.destroy()
+    throw new Error('UNAUTHENTICATED')
+  }
+
   return session.user
 }
 
