@@ -77,7 +77,23 @@ export async function GET(req: NextRequest) {
   const start = Date.now()
 
   try {
+    // Fetch team abbreviations first (MLB player endpoint doesn't include them)
+    const teamsRes = await fetch('https://statsapi.mlb.com/api/v1/teams?sportId=1')
+    const teamsData = await teamsRes.json()
+    const teamAbbrMap: Record<number, string> = {}
+    for (const t of (teamsData.teams ?? [])) {
+      teamAbbrMap[t.id] = t.abbreviation
+    }
+
     const players = await fetchAllPlayers(new Date().getFullYear())
+
+    // Enrich players with team abbreviation
+    for (const p of players) {
+      if (p.currentTeam?.id && !p.currentTeam.abbreviation) {
+        (p.currentTeam as any).abbreviation = teamAbbrMap[p.currentTeam.id] ?? null
+      }
+    }
+
     await bulkUpsertPlayers(players)
 
     const duration = Date.now() - start
