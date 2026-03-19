@@ -249,41 +249,6 @@ export default function RosterPage() {
         ) : null
       })()}
 
-      {/* Weekly Schedule Summary */}
-      {(() => {
-        const teamGames = new Map<string, { games: number; schedule: Array<{ date: string; opponent: string }> }>()
-        for (const r of roster) {
-          const abbr = r.player.mlbTeamAbbr
-          if (abbr && !teamGames.has(abbr)) {
-            teamGames.set(abbr, { games: r.player.gamesThisWeek, schedule: r.player.schedule })
-          }
-        }
-        const sorted = [...teamGames.entries()].sort((a, b) => b[1].games - a[1].games)
-        return sorted.length > 0 && sorted.some(([, v]) => v.games > 0) ? (
-          <div className="card overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-surface-border flex items-center gap-2">
-              <Calendar size={14} className="text-brand" />
-              <span className="font-display font-bold text-sm">Week Schedule</span>
-              {weekLabel && <span className="text-xs text-text-muted ml-1">{weekLabel}</span>}
-            </div>
-            <div className="px-4 py-3 flex flex-wrap gap-3">
-              {sorted.map(([abbr, data]) => (
-                <div key={abbr} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-2 border border-surface-border min-w-[120px]">
-                  <span className="font-mono font-bold text-sm text-text-primary">{abbr}</span>
-                  <span className={`font-display font-bold text-lg ${data.games >= 6 ? 'text-brand' : data.games >= 4 ? 'text-text-primary' : 'text-accent-red'}`}>
-                    {data.games}G
-                  </span>
-                  <div className="text-[10px] text-text-muted leading-tight">
-                    {data.schedule.slice(0, 3).map(s => s.opponent).join(', ')}
-                    {data.schedule.length > 3 && '...'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null
-      })()}
-
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Starting Lineup */}
         <div className="card overflow-hidden">
@@ -313,39 +278,46 @@ export default function RosterPage() {
 
                 {slot.player ? (
                   <div
-                    className="flex-1 flex items-center gap-3 cursor-grab active:cursor-grabbing"
+                    className="flex-1 cursor-grab active:cursor-grabbing"
                     draggable={!isLocked}
                     onDragStart={() => handleDragStart(slot.player!.rosterSlotId)}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/players/${slot.player.player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
-                          {slot.player.player.fullName}
-                        </Link>
-                        <span className={`text-xs font-mono font-semibold ${getStatusColor(slot.player.player.status)}`}>
-                          {getStatusLabel(slot.player.player.status)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-text-muted flex items-center gap-1.5 flex-wrap">
-                        <span>{slot.player.player.positions.join(', ')} · {slot.player.player.mlbTeamAbbr ?? 'FA'}</span>
-                        {slot.player.player.gamesThisWeek > 0 && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-surface-3 text-text-secondary">
-                            <Calendar size={9} />
-                            {slot.player.player.gamesThisWeek}G
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Link href={`/players/${slot.player.player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
+                            {slot.player.player.fullName}
+                          </Link>
+                          <span className={`text-xs font-mono font-semibold ${getStatusColor(slot.player.player.status)}`}>
+                            {getStatusLabel(slot.player.player.status)}
                           </span>
+                        </div>
+                        <div className="text-xs text-text-muted">
+                          {slot.player.player.positions.join(', ')} · {slot.player.player.mlbTeamAbbr ?? 'FA'}
+                        </div>
+                        {slot.player.player.news && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <AlertTriangle size={10} className="text-accent-red flex-shrink-0" />
+                            <span className="text-[10px] text-accent-red truncate">{slot.player.player.news}</span>
+                          </div>
                         )}
                       </div>
-                      {slot.player.player.news && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <AlertTriangle size={10} className="text-accent-red flex-shrink-0" />
-                          <span className="text-[10px] text-accent-red truncate">{slot.player.player.news}</span>
-                        </div>
-                      )}
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-display font-bold text-lg text-brand">{slot.player.weeklyHR}</div>
+                        <div className="text-xs text-text-muted">{slot.player.player.seasonHR} szn</div>
+                      </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="font-display font-bold text-lg text-brand">{slot.player.weeklyHR}</div>
-                      <div className="text-xs text-text-muted">{slot.player.player.seasonHR} total</div>
-                    </div>
+                    {slot.player.player.schedule.length > 0 && (
+                      <div className="flex gap-1 mt-1.5">
+                        {slot.player.player.schedule.map((g, gi) => (
+                          <div key={gi} className={`px-1.5 py-0.5 rounded text-[9px] font-mono leading-tight ${
+                            g.opponent.startsWith('vs') ? 'bg-brand/10 text-brand' : 'bg-surface-3 text-text-muted'
+                          }`}>
+                            {g.opponent}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex-1 text-text-muted text-sm italic">Empty slot</div>
@@ -377,39 +349,46 @@ export default function RosterPage() {
 
                 {slot.player ? (
                   <div
-                    className="flex-1 flex items-center gap-3 cursor-grab active:cursor-grabbing"
+                    className="flex-1 cursor-grab active:cursor-grabbing"
                     draggable={!isLocked}
                     onDragStart={() => handleDragStart(slot.player!.rosterSlotId)}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/players/${slot.player.player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
-                          {slot.player.player.fullName}
-                        </Link>
-                        <span className={`text-xs font-mono font-semibold ${getStatusColor(slot.player.player.status)}`}>
-                          {getStatusLabel(slot.player.player.status)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-text-muted flex items-center gap-1.5 flex-wrap">
-                        <span>{slot.player.player.positions.join(', ')} · {slot.player.player.mlbTeamAbbr ?? 'FA'}</span>
-                        {slot.player.player.gamesThisWeek > 0 && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-surface-3 text-text-secondary">
-                            <Calendar size={9} />
-                            {slot.player.player.gamesThisWeek}G
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Link href={`/players/${slot.player.player.id}`} className="font-medium text-sm text-text-primary truncate hover:underline">
+                            {slot.player.player.fullName}
+                          </Link>
+                          <span className={`text-xs font-mono font-semibold ${getStatusColor(slot.player.player.status)}`}>
+                            {getStatusLabel(slot.player.player.status)}
                           </span>
+                        </div>
+                        <div className="text-xs text-text-muted">
+                          {slot.player.player.positions.join(', ')} · {slot.player.player.mlbTeamAbbr ?? 'FA'}
+                        </div>
+                        {slot.player.player.news && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <AlertTriangle size={10} className="text-accent-red flex-shrink-0" />
+                            <span className="text-[10px] text-accent-red truncate">{slot.player.player.news}</span>
+                          </div>
                         )}
                       </div>
-                      {slot.player.player.news && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <AlertTriangle size={10} className="text-accent-red flex-shrink-0" />
-                          <span className="text-[10px] text-accent-red truncate">{slot.player.player.news}</span>
-                        </div>
-                      )}
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-display font-bold text-lg text-text-muted">{slot.player.player.seasonHR}</div>
+                        <div className="text-xs text-text-muted">szn</div>
+                      </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="font-display font-bold text-lg text-text-muted">{slot.player.player.seasonHR}</div>
-                      <div className="text-xs text-text-muted">season HR</div>
-                    </div>
+                    {slot.player.player.schedule.length > 0 && (
+                      <div className="flex gap-1 mt-1.5">
+                        {slot.player.player.schedule.map((g, gi) => (
+                          <div key={gi} className={`px-1.5 py-0.5 rounded text-[9px] font-mono leading-tight ${
+                            g.opponent.startsWith('vs') ? 'bg-brand/10 text-brand' : 'bg-surface-3 text-text-muted'
+                          }`}>
+                            {g.opponent}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex-1 text-text-muted text-sm italic">Empty bench spot</div>
