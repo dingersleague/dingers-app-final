@@ -12,6 +12,18 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
+// SAFETY: Never allow seed (which wipes all data) to run against production
+const dbUrl = process.env.DATABASE_URL ?? ''
+if (
+  process.env.NODE_ENV === 'production' ||
+  (!dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1') && !process.env.SEED_ALLOW_REMOTE)
+) {
+  console.error('🚫 Seed blocked — DATABASE_URL points to a remote database.')
+  console.error('   This script deletes ALL data. To run against a remote DB intentionally,')
+  console.error('   set SEED_ALLOW_REMOTE=1 (e.g. SEED_ALLOW_REMOTE=1 npx tsx prisma/seed.ts)')
+  process.exit(1)
+}
+
 const prisma = new PrismaClient()
 
 const TEAMS = [
