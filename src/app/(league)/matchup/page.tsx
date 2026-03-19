@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { Zap, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import RefreshScoresButton from '@/components/RefreshScoresButton'
+import TeamLogo from '@/components/TeamLogo'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,8 +32,8 @@ async function getMatchupData(userId: string) {
       OR: [{ homeTeamId: team.id }, { awayTeamId: team.id }],
     },
     include: {
-      homeTeam: { include: { user: { select: { name: true } } } },
-      awayTeam: { include: { user: { select: { name: true } } } },
+      homeTeam: { include: { user: { select: { name: true } } }, },
+      awayTeam: { include: { user: { select: { name: true } } }, },
     },
   })
 
@@ -155,6 +156,12 @@ export default async function MatchupPage() {
 
   const leading = myScore > opponentScore ? 'me' : myScore < opponentScore ? 'opponent' : 'tied'
 
+  // Weekly projections: seasonHR / 25 weeks for each starter
+  const myProjHR = myStarters.reduce((sum, s) => sum + (s.player.seasonHR / 25), 0)
+  const oppProjHR = oppStarters.reduce((sum, s) => sum + (s.player.seasonHR / 25), 0)
+  const totalProj = myProjHR + oppProjHR
+  const myProjPct = totalProj > 0 ? (myProjHR / totalProj) * 100 : 50
+
   return (
     <div className="space-y-6 animate-fade-in">
       {matchup.status !== 'COMPLETE' && (
@@ -184,6 +191,9 @@ export default async function MatchupPage() {
           <div className="flex items-center justify-between">
             {/* My team */}
             <div className="flex-1 text-center">
+              <div className="flex justify-center mb-3">
+                <TeamLogo logoUrl={myTeam.logoUrl} abbreviation={myTeam.abbreviation} primaryColor={myTeam.primaryColor} secondaryColor={myTeam.secondaryColor} size="xl" />
+              </div>
               <div className={`font-display font-black text-7xl lg:text-8xl leading-none ${
                 leading === 'me' ? 'text-brand glow-brand' : 'text-text-primary'
               }`}>
@@ -205,6 +215,9 @@ export default async function MatchupPage() {
 
             {/* Opponent */}
             <div className="flex-1 text-center">
+              <div className="flex justify-center mb-3">
+                <TeamLogo logoUrl={opponentTeam.logoUrl} abbreviation={opponentTeam.abbreviation} primaryColor={opponentTeam.primaryColor} secondaryColor={opponentTeam.secondaryColor} size="xl" />
+              </div>
               <div className={`font-display font-black text-7xl lg:text-8xl leading-none ${
                 leading === 'opponent' ? 'text-accent-red' : 'text-text-primary'
               }`}>
@@ -213,6 +226,36 @@ export default async function MatchupPage() {
               <Link href={`/teams/${opponentTeam.id}`} className="mt-2 font-display font-bold text-lg text-text-secondary hover:text-brand transition-colors block">{opponentTeam.name}</Link>
               <div className="text-xs text-text-muted">{opponentTeam.abbreviation}</div>
             </div>
+          </div>
+        </div>
+
+        {/* Weekly Projection Bar */}
+        <div className="px-6 py-4 border-t border-surface-border">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-text-muted uppercase tracking-wider flex items-center gap-1">
+              <TrendingUp size={12} /> Weekly Projection
+            </span>
+            <span className="text-xs text-text-muted">
+              {myProjHR.toFixed(1)} HR — {oppProjHR.toFixed(1)} HR
+            </span>
+          </div>
+          <div className="flex h-2.5 rounded-full overflow-hidden bg-surface-3">
+            <div
+              className="bg-brand rounded-l-full transition-all"
+              style={{ width: `${myProjPct}%` }}
+            />
+            <div
+              className="bg-accent-red/70 rounded-r-full transition-all"
+              style={{ width: `${100 - myProjPct}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className={`text-xs font-semibold ${myProjHR >= oppProjHR ? 'text-brand' : 'text-text-muted'}`}>
+              {myTeam.abbreviation} {myProjHR > oppProjHR ? `+${(myProjHR - oppProjHR).toFixed(1)}` : ''}
+            </span>
+            <span className={`text-xs font-semibold ${oppProjHR > myProjHR ? 'text-accent-red' : 'text-text-muted'}`}>
+              {oppProjHR > myProjHR ? `+${(oppProjHR - myProjHR).toFixed(1)}` : ''} {opponentTeam.abbreviation}
+            </span>
           </div>
         </div>
       </div>
