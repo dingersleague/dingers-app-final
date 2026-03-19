@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth'
+import { optionalAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -17,15 +17,24 @@ const TX_LABELS: Record<string, string> = {
 }
 
 export default async function TransactionsPage() {
-  const user = await requireAuth()
-  const userWithTeam = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { team: true },
-  })
-  if (!userWithTeam?.team) return null
+  const user = await optionalAuth()
+  let leagueId: string | null = null
+  let myTeamId: string | null = null
 
-  const leagueId = userWithTeam.team.leagueId
-  const myTeamId = userWithTeam.team.id
+  if (user) {
+    const userWithTeam = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { team: true },
+    })
+    leagueId = userWithTeam?.team?.leagueId ?? null
+    myTeamId = userWithTeam?.team?.id ?? null
+  }
+
+  if (!leagueId) {
+    const league = await prisma.league.findFirst({ select: { id: true } })
+    leagueId = league?.id ?? null
+  }
+  if (!leagueId) return null
 
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
@@ -35,7 +44,7 @@ export default async function TransactionsPage() {
   // Show FAAB budget leaderboard when league uses FAAB waivers
   const faabTeams = league?.waiverType === 'FAAB'
     ? await prisma.team.findMany({
-        where: { leagueId: userWithTeam.team.leagueId },
+        where: { leagueId },
         select: { id: true, name: true, abbreviation: true, faabBalance: true },
         orderBy: { faabBalance: 'desc' },
       })
@@ -135,7 +144,7 @@ export default async function TransactionsPage() {
   )
 }
 
-function TransactionRow({ tx, myTeamId, showBid = false }: { tx: any; myTeamId: string; showBid?: boolean }) {
+function TransactionRow({ tx, myTeamId, showBid = false }: { tx: any; myTeamId: string | null; showBid?: boolean }) {
   const isAdd = tx.type.includes('ADD')
   const isMe = tx.teamId === myTeamId
 

@@ -66,6 +66,21 @@ export async function requireAuth(): Promise<SessionUser> {
   return session.user
 }
 
+// Get current user if logged in, or null if not — never throws
+export async function optionalAuth(): Promise<SessionUser | null> {
+  const session = await getSession()
+  if (!session.user) return null
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true },
+  })
+  if (!dbUser) {
+    session.destroy()
+    return null
+  }
+  return session.user
+}
+
 // Get current commissioner — throws 'UNAUTHENTICATED' or 'UNAUTHORIZED'
 export async function requireCommissioner(): Promise<SessionUser> {
   const user = await requireAuth()

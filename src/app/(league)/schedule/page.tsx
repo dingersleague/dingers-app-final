@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth'
+import { optionalAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -9,14 +9,22 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Schedule' }
 
 export default async function SchedulePage() {
-  const user = await requireAuth()
-  const userWithTeam = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { team: true },
-  })
-  if (!userWithTeam?.team) return null
+  const user = await optionalAuth()
+  let team: any = null
 
-  const { team } = userWithTeam
+  if (user) {
+    const userWithTeam = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { team: true },
+    })
+    team = userWithTeam?.team ?? null
+  }
+
+  // If not logged in, get the first league's first team for context
+  if (!team) {
+    team = await prisma.team.findFirst({ orderBy: { waiverPriority: 'asc' } })
+  }
+  if (!team) return null
 
   const season = new Date().getFullYear()
   const weeks = await prisma.leagueWeek.findMany({

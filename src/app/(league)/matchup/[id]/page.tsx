@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth'
+import { optionalAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import { Zap, ArrowLeft } from 'lucide-react'
@@ -118,7 +118,7 @@ function PlayerRow({ slot, showScore = true }: { slot: any; showScore?: boolean 
 }
 
 export default async function MatchupDetailPage({ params }: { params: { id: string } }) {
-  await requireAuth()
+  await optionalAuth()
   const data = await getMatchupById(params.id)
 
   if (!data) return notFound()

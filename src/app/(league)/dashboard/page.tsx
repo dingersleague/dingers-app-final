@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth'
+import { optionalAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -91,7 +91,8 @@ async function getDashboardData(userId: string) {
 }
 
 export default async function DashboardPage() {
-  const user = await requireAuth()
+  const user = await optionalAuth()
+  if (!user) redirect('/login')
   const data = await getDashboardData(user.id)
   if (!data) redirect('/setup')
 

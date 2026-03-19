@@ -8,5 +8,5 @@ export default async function RootPage() {
   if (session.user) {
     redirect('/dashboard')
   }
-  redirect('/login')
+  redirect('/standings')
 }

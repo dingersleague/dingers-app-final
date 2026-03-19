@@ -2,17 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getIronSession } from 'iron-session'
 import { sessionOptions } from '@/lib/auth'
 
-// Routes that require authentication
+// Routes that require authentication (actions/management only)
 const PROTECTED_PREFIXES = [
-  '/dashboard',
-  '/matchup',
-  '/standings',
   '/roster',
-  '/players',
-  '/schedule',
-  '/transactions',
   '/draft',
   '/admin',
+  '/team/settings',
+  '/trades',
 ]
 
 // Routes only for unauthenticated users

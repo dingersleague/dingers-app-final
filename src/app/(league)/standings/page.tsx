@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth'
+import { optionalAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Trophy, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
@@ -72,16 +72,26 @@ async function getStandings(leagueId: string) {
 }
 
 export default async function StandingsPage() {
-  const user = await requireAuth()
-  const userWithTeam = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { team: true },
-  })
+  const user = await optionalAuth()
+  let myTeamId: string | null = null
+  let leagueId: string | null = null
 
-  if (!userWithTeam?.team) return null
+  if (user) {
+    const userWithTeam = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { team: true },
+    })
+    myTeamId = userWithTeam?.team?.id ?? null
+    leagueId = userWithTeam?.team?.leagueId ?? null
+  }
 
-  const standings = await getStandings(userWithTeam.team.leagueId)
-  const myTeamId = userWithTeam.team.id
+  if (!leagueId) {
+    const league = await prisma.league.findFirst({ select: { id: true } })
+    leagueId = league?.id ?? null
+  }
+  if (!leagueId) return null
+
+  const standings = await getStandings(leagueId)
 
   // Playoff picture: top 6 teams make playoffs in a 12-team league
   const PLAYOFF_SPOTS = 6

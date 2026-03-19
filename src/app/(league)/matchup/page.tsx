@@ -1,4 +1,5 @@
-import { requireAuth } from '@/lib/auth'
+import { optionalAuth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import { Zap, TrendingUp } from 'lucide-react'
@@ -134,7 +135,8 @@ function PlayerRow({ slot, showScore = true }: { slot: any; showScore?: boolean 
 }
 
 export default async function MatchupPage() {
-  const user = await requireAuth()
+  const user = await optionalAuth()
+  if (!user) redirect('/login')
   const data = await getMatchupData(user.id)
 
   if (!data) {
