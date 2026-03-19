@@ -7,6 +7,103 @@ import { assignStartingPositions } from '@/lib/draft'
 
 export const dynamic = 'force-dynamic'
 
+// ─── Server-side auto-pick (runs inline during GET polling) ─────────────────
+
+async function runServerAutoPick(
+  draftSettingsId: string,
+  currentPick: number,
+  leagueId: string,
+): Promise<{ skipped?: boolean; done?: boolean } | null> {
+  const result = await prisma.$transaction(async tx => {
+    const pick = await tx.draftPick.findFirstOrThrow({
+      where: { draftSettingsId, pickNumber: currentPick },
+    })
+
+    if (pick.playerId) return { skipped: true }
+
+    // Find best available by HR
+    const draftedPlayerIds = await tx.draftPick.findMany({
+      where: { draftSettingsId, playerId: { not: null } },
+      select: { playerId: true },
+    })
+    const draftedIds = draftedPlayerIds.map(p => p.playerId).filter(Boolean) as string[]
+
+    const candidates = await tx.player.findMany({
+      where: {
+        id: { notIn: draftedIds },
+        status: 'ACTIVE',
+        NOT: { positions: { hasSome: ['P', 'SP', 'RP'] } },
+      },
+      include: {
+        seasonStats: { where: { season: new Date().getFullYear() }, take: 1 },
+      },
+      take: 500,
+    })
+
+    const best = candidates
+      .map(p => ({ ...p, hr: p.seasonStats[0]?.homeRuns ?? 0 }))
+      .sort((a, b) => b.hr - a.hr)[0]
+
+    if (!best) return { skipped: true }
+
+    await tx.draftPick.update({
+      where: { id: pick.id },
+      data: { playerId: best.id, pickedAt: new Date(), isAutoPick: true },
+    })
+
+    await tx.rosterSlot.create({
+      data: {
+        teamId: pick.teamId,
+        playerId: best.id,
+        slotType: 'BENCH',
+        position: 'BN',
+        acquiredVia: 'DRAFT',
+      },
+    })
+
+    const nextPickNumber = currentPick + 1
+    const totalPicks = await tx.draftPick.count({ where: { draftSettingsId } })
+
+    if (nextPickNumber > totalPicks) {
+      await tx.draftSettings.update({
+        where: { id: draftSettingsId },
+        data: { status: 'COMPLETE', completedAt: new Date(), currentPick: nextPickNumber },
+      })
+      await tx.league.update({
+        where: { id: leagueId },
+        data: { status: 'REGULAR_SEASON' },
+      })
+      return { done: true }
+    }
+
+    const nextPick = await tx.draftPick.findFirstOrThrow({
+      where: { draftSettingsId, pickNumber: nextPickNumber },
+    })
+    await tx.draftPick.update({
+      where: { id: nextPick.id },
+      data: { nominatedAt: new Date() },
+    })
+    await tx.draftSettings.update({
+      where: { id: draftSettingsId },
+      data: { currentPick: nextPickNumber, currentRound: nextPick.round },
+    })
+
+    return { done: false }
+  }, { isolationLevel: 'Serializable', timeout: 15_000 })
+
+  // If draft completed, run post-draft setup
+  if (result && 'done' in result && result.done) {
+    const { assignStartingPositions } = await import('@/lib/draft')
+    const { initializeWeekLineups } = await import('@/lib/scoring')
+    const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } })
+    await assignStartingPositions(leagueId)
+    await initializeWeekLineups(leagueId, league.currentWeek)
+    log('info', 'draft_complete_via_server_autopick', { leagueId })
+  }
+
+  return result
+}
+
 // ─── GET /api/draft — Poll current draft state ─────────────────────────────
 
 export async function GET() {
@@ -23,12 +120,43 @@ export async function GET() {
     const leagueId = userWithTeam.team.leagueId
     const league = await prisma.league.findUniqueOrThrow({ where: { id: leagueId } })
 
-    const draftSettings = await prisma.draftSettings.findFirst({
+    let draftSettings = await prisma.draftSettings.findFirst({
       where: { leagueId },
     })
 
     if (!draftSettings) {
       return NextResponse.json({ success: false, error: 'No draft configured' }, { status: 404 })
+    }
+
+    // ── Server-side auto-pick: if timer expired, pick before returning state ──
+    // This ensures the draft progresses even if the picking team's client is offline.
+    // Every polling client triggers this check, so the draft never stalls.
+    if (draftSettings.status === 'ACTIVE') {
+      let autoPickNeeded = true
+      while (autoPickNeeded) {
+        autoPickNeeded = false
+        const curPick = await prisma.draftPick.findFirst({
+          where: { draftSettingsId: draftSettings.id, pickNumber: draftSettings.currentPick },
+        })
+
+        if (curPick && !curPick.playerId && curPick.nominatedAt) {
+          const deadline = new Date(curPick.nominatedAt.getTime() + draftSettings.timerSeconds * 1000)
+          if (new Date() >= deadline) {
+            try {
+              const result = await runServerAutoPick(draftSettings.id, draftSettings.currentPick, leagueId)
+              if (result && !result.skipped) {
+                // Refresh draft settings and check if another pick also expired
+                draftSettings = await prisma.draftSettings.findFirstOrThrow({ where: { leagueId } })
+                if (!result.done && draftSettings.status === 'ACTIVE') {
+                  autoPickNeeded = true // Check next pick too (might also be expired)
+                }
+              }
+            } catch {
+              // Failed — will retry on next poll
+            }
+          }
+        }
+      }
     }
 
     // All picks with team and player info
@@ -38,7 +166,7 @@ export async function GET() {
         team: { select: { id: true, name: true, abbreviation: true } },
         player: {
           select: {
-            id: true, fullName: true, positions: true, mlbTeamAbbr: true,
+            id: true, mlbId: true, fullName: true, positions: true, mlbTeamAbbr: true,
             seasonStats: { where: { season: new Date().getFullYear() }, take: 1 },
           },
         },
@@ -95,6 +223,7 @@ export async function GET() {
       teamAbbr: p.team.abbreviation,
       player: p.player ? {
         id: p.player.id,
+        mlbId: p.player.mlbId,
         fullName: p.player.fullName,
         positions: p.player.positions,
         mlbTeamAbbr: p.player.mlbTeamAbbr,

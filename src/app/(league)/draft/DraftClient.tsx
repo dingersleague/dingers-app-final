@@ -14,6 +14,7 @@ interface DraftPick {
   teamAbbr: string
   player: {
     id: string
+    mlbId: number
     fullName: string
     positions: string[]
     mlbTeamAbbr: string | null
@@ -50,6 +51,9 @@ interface DraftState {
 }
 
 const POSITION_FILTERS = ['ALL', 'C', '1B', '2B', 'SS', '3B', 'OF', 'DH']
+
+const headshotUrl = (mlbId: number) =>
+  `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_80,q_auto:best/v1/people/${mlbId}/headshot/67/current`
 
 export default function DraftClient({ myTeamId }: { myTeamId: string }) {
   const [state, setState] = useState<DraftState | null>(null)
@@ -352,6 +356,12 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
                   }`}
                 >
                   <span className="w-8 text-center font-mono text-xs text-text-muted">{i + 1}</span>
+                  <img
+                    src={headshotUrl(player.mlbId)}
+                    alt=""
+                    className="w-8 h-8 rounded-full object-cover bg-surface-3 flex-shrink-0"
+                    loading="lazy"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-text-primary truncate">{player.fullName}</div>
                     <div className="text-xs text-text-muted">{player.mlbTeamAbbr ?? 'FA'}</div>
@@ -415,6 +425,12 @@ export default function DraftClient({ myTeamId }: { myTeamId: string }) {
                   <span className="font-mono text-xs text-text-muted w-8 pt-0.5 text-center">
                     {pick.round}.{pick.pickInRound}
                   </span>
+                  <img
+                    src={headshotUrl(pick.player!.mlbId)}
+                    alt=""
+                    className="w-8 h-8 rounded-full object-cover bg-surface-3 flex-shrink-0"
+                    loading="lazy"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-text-primary truncate">
                       {pick.player!.fullName}
@@ -498,7 +514,15 @@ function DraftGrid({ picks, myTeamId, totalRounds }: { picks: DraftPick[]; myTea
                         {pick?.player ? (
                           <div className={`rounded-md px-1.5 py-1 ${pick.isAutoPick ? 'bg-surface-3/80' : 'bg-surface-1'}`}>
                             <div className="font-medium text-text-primary truncate text-[11px] leading-tight">
-                              {pick.player.fullName.split(' ').pop()}
+                              {(() => {
+                                const parts = pick.player.fullName.split(' ')
+                                const suffixes = ['Jr.', 'Jr', 'Sr.', 'Sr', 'II', 'III', 'IV']
+                                const last = parts[parts.length - 1]
+                                if (parts.length > 2 && suffixes.includes(last)) {
+                                  return parts[parts.length - 2] + ' ' + last
+                                }
+                                return last
+                              })()}
                             </div>
                             <div className="text-text-muted text-[10px]">
                               {pick.player.positions.join('/')} · {pick.player.seasonHR} HR
