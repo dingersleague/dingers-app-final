@@ -25,8 +25,10 @@ export default async function TransactionsPage() {
   if (!userWithTeam?.team) return null
 
   const leagueId = userWithTeam.team.leagueId
+  const myTeamId = userWithTeam.team.id
 
   const league = await prisma.league.findFirst({
+    where: { id: leagueId },
     select: { waiverType: true, faabBudget: true },
   })
 
@@ -52,8 +54,6 @@ export default async function TransactionsPage() {
   // Only show YOUR pending waivers (bids are private until processed)
   const myPending = transactions.filter(t => t.status === 'PENDING' && t.teamId === myTeamId)
   const processed = transactions.filter(t => t.status !== 'PENDING')
-
-  const myTeamId = userWithTeam.team.id
 
   return (
     <div className="space-y-6 animate-fade-in">
