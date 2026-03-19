@@ -22,16 +22,11 @@ export async function GET(req: NextRequest) {
     // Get current league week
     const league = await prisma.league.findFirst({
       where: { teams: { some: { id: viewTeamId } } },
-      include: {
-        weeks: {
-          where: { weekNumber: { gt: 0 } },
-          orderBy: { weekNumber: 'desc' },
-          take: 1,
-        },
-      },
     })
 
-    const currentWeek = league?.weeks[0]
+    const currentWeek = league ? await prisma.leagueWeek.findFirst({
+      where: { leagueId: league.id, weekNumber: league.currentWeek },
+    }) : null
 
     // Get team roster with player stats
     const rosterSlots = await prisma.rosterSlot.findMany({
