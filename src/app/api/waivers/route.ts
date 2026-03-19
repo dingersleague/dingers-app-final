@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { getTransactionWindowStatus } = await import('@/lib/roster-lock')
-    const windowStatus = getTransactionWindowStatus()
+    let windowStatus = getTransactionWindowStatus()
 
     const [claims, team, league] = await Promise.all([
       prisma.transaction.findMany({
@@ -202,9 +202,15 @@ export async function GET(req: NextRequest) {
       }),
       prisma.league.findUniqueOrThrow({
         where: { id: user.leagueId },
-        select: { waiverType: true, faabBudget: true, faabAllowZeroBid: true },
+        select: { status: true, waiverType: true, faabBudget: true, faabAllowZeroBid: true },
       }),
     ])
+
+    // During preseason, allow unrestricted adds (no waivers needed)
+    const isPreseason = ['SETUP', 'PREDRAFT', 'DRAFT'].includes(league.status)
+    if (isPreseason) {
+      windowStatus = { ...windowStatus, freeAgencyOpen: true, rosterLocked: false, waiversClosed: false }
+    }
 
     const sortedClaims =
       league.waiverType === 'FAAB'

@@ -17,7 +17,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No team' }, { status: 404 })
     }
 
-    if (isRosterLocked()) {
+    // Preseason (SETUP/PREDRAFT/DRAFT) allows unrestricted drops
+    const league = await prisma.league.findFirst({
+      where: { teams: { some: { id: user.teamId } } },
+      select: { status: true },
+    })
+    const isPreseason = league && ['SETUP', 'PREDRAFT', 'DRAFT'].includes(league.status)
+
+    if (!isPreseason && isRosterLocked()) {
       return NextResponse.json({
         success: false,
         error: 'Roster moves are locked. Rosters unlock after Tuesday rollover.',

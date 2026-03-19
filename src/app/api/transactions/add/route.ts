@@ -20,7 +20,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No team or league' }, { status: 404 })
     }
 
-    if (isRosterLocked()) {
+    // Check league status — preseason (SETUP/PREDRAFT/DRAFT) allows unrestricted adds
+    const league = await prisma.league.findFirst({
+      where: { id: user.leagueId },
+      select: { status: true },
+    })
+    const isPreseason = league && ['SETUP', 'PREDRAFT', 'DRAFT'].includes(league.status)
+
+    if (!isPreseason && isRosterLocked()) {
       return NextResponse.json({
         success: false,
         error: 'Roster moves are locked. Rosters unlock after Tuesday rollover.',
@@ -28,7 +35,8 @@ export async function POST(req: NextRequest) {
     }
 
     // All adds go through waivers unless it's the free agency window (Monday 1AM-noon)
-    if (!isFreeAgencyWindowOpen()) {
+    // or the league is still in preseason
+    if (!isPreseason && !isFreeAgencyWindowOpen()) {
       return NextResponse.json({
         success: false,
         error: 'All player adds must go through waivers. Submit a waiver claim instead. Free agent pickups are available Monday 1AM-noon UTC.',

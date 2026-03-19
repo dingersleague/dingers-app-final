@@ -21,6 +21,17 @@
 
 import { PrismaClient } from '@prisma/client'
 
+// SAFETY: Never allow destructive test scripts to run against production
+const dbUrl = process.env.DATABASE_URL ?? ''
+if (
+  process.env.NODE_ENV === 'production' ||
+  (!dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1') && !process.env.SEED_ALLOW_REMOTE)
+) {
+  console.error('🚫 Blocked — DATABASE_URL points to a remote database.')
+  console.error('   This script deletes data. Set SEED_ALLOW_REMOTE=1 to override.')
+  process.exit(1)
+}
+
 const prisma = new PrismaClient()
 
 const ROSTER_SIZE = 13  // 9 starters + 4 bench

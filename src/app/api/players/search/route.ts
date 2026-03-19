@@ -101,6 +101,19 @@ export async function GET(req: NextRequest) {
       recentDrops.forEach(d => waiverPlayerIds.add(d.playerId))
     }
 
+    // Check for pending waiver claims by this user
+    const allPlayerIds = players.map(p => p.id)
+    const pendingClaims = teamId ? await prisma.transaction.findMany({
+      where: {
+        teamId,
+        playerId: { in: allPlayerIds },
+        status: 'PENDING',
+        type: 'WAIVER_ADD',
+      },
+      select: { playerId: true },
+    }) : []
+    const pendingClaimIds = new Set(pendingClaims.map(c => c.playerId))
+
     const result = players.map(p => {
       const rosterSlot = p.rosterSlots[0]
       return {
@@ -113,6 +126,7 @@ export async function GET(req: NextRequest) {
         seasonHR: p.seasonStats[0]?.homeRuns ?? 0,
         isOnRoster: p.rosterSlots.length > 0,
         isOnWaivers: waiverPlayerIds.has(p.id),
+        hasPendingClaim: pendingClaimIds.has(p.id),
         ownedByTeamId: rosterSlot?.teamId ?? null,
         ownedByTeamName: rosterSlot?.team?.name ?? null,
       }

@@ -17,6 +17,7 @@ interface Player {
   seasonHR: number
   isOnRoster: boolean
   isOnWaivers: boolean
+  hasPendingClaim: boolean
   ownedByTeamId: string | null
   ownedByTeamName: string | null
 }
@@ -342,7 +343,12 @@ export default function PlayerSearchPage() {
                         Drop
                       </button>
                     ) : !player.isOnRoster ? (
-                      freeAgencyOpen ? (
+                      player.hasPendingClaim ? (
+                        <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/10 text-accent-amber text-xs font-semibold">
+                          <Clock size={12} />
+                          Pending
+                        </span>
+                      ) : freeAgencyOpen ? (
                         <button
                           onClick={() => handleAdd(player)}
                           disabled={isPending}
