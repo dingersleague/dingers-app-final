@@ -466,14 +466,14 @@ export default function RosterPage() {
         </div>
       </div>
 
-      {/* Selection hint */}
+      {/* Selection hint — positioned above mobile bottom nav and save button */}
       {selectedSlotIdx !== null && (
-        <div className="fixed bottom-20 lg:bottom-4 left-1/2 -translate-x-1/2 z-50 bg-brand text-surface-0 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in">
-          <span className="text-sm font-semibold">
-            {lineup[selectedSlotIdx]?.player?.player.fullName ?? 'Empty slot'} selected
+        <div className="fixed bottom-36 lg:bottom-20 left-1/2 -translate-x-1/2 z-40 bg-brand text-surface-0 px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in text-sm">
+          <span className="font-semibold truncate max-w-[180px]">
+            {lineup[selectedSlotIdx]?.player?.player.fullName ?? 'Empty slot'}
           </span>
-          <span className="text-xs opacity-80">Tap another slot to swap</span>
-          <button onClick={() => setSelectedSlotIdx(null)} className="text-xs underline opacity-80 hover:opacity-100">Cancel</button>
+          <span className="text-xs opacity-80 hidden sm:inline">→ Tap to swap</span>
+          <button onClick={() => setSelectedSlotIdx(null)} className="text-xs px-2 py-1 rounded-lg bg-white/20 hover:bg-white/30">✕</button>
         </div>
       )}
     </div>
